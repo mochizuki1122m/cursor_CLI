@@ -1,3 +1,123 @@
+## 目的
+Implementer（実装）と Critic（レビュー）が IR（JSON＋diff）を介して安全に自動リレーし、Director（人間）が GO ゲートで最終承認できる、堅牢で監査可能な最小基盤を提供します。
+
+## できること（概要）
+- IR固定と機械検証: SpecIR／PatchIR／VerifyIR を JSON Schema 2020-12 で固定。すべての出力はスキーマ検証を強制。
+- ガードレール: 自然文混入の拒否、差分（unified diff）強制、GOゲート、反復・コスト上限、監査（JSONLチェーン＋署名）。
+- 自動リレー: Implementer→PatchIR → Critic→VerifyIR → 監査 →（合格時）パッチ適用・スコアカード作成。
+- CIゲート: ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋署名／CodeQL とスコアカード閾値で PR をブロック。
+- ダブルクリック起動: Windows（StartRelay.cmd）、macOS（start-relay.command）。
+
+## ディレクトリ構成
+```
+.
+├── StartRelay.cmd
+├── start-relay.command
+├── .env.example
+├── .eslintrc.json
+├── .gitignore
+├── package.json
+├── requirements.txt
+├── README.md
+├── schema/
+│   ├── spec_ir.schema.json
+│   ├── patch_ir.schema.json
+│   └── verify_ir.schema.json
+├── scripts/
+│   ├── relay.sh
+│   ├── relay.ps1
+│   ├── start.ps1
+│   ├── run_implementer.mjs
+│   ├── run_critic.mjs
+│   ├── validate_json.mjs
+│   ├── apply_patch_ir.mjs
+│   ├── analyze_patch_ir.mjs
+│   ├── make_scorecard.mjs
+│   └── lib/
+│       └── llm_client.mjs
+├── dialogue/
+│   └── GO.txt
+├── patches/
+│   └── patch_ir.json
+├── review/
+│   └── reports/
+│       ├── verify_ir.json
+│       ├── analysis.json
+│       └── scorecard.json
+├── audit/
+│   └── log-YYYYMMDD.jsonl
+├── prompts/
+│   └── .gitkeep
+├── policy/
+│   └── .gitkeep
+├── change_summaries/
+│   └── .gitkeep
+└── .github/
+    ├── PULL_REQUEST_TEMPLATE.md
+    └── workflows/
+        ├── ci.yml
+        └── audit-sign.yml
+```
+
+## セットアップ
+- 共通
+  1) npm install  2) pip install -r requirements.txt  3) cp .env.example .env
+- Windows（ダブルクリック）: `StartRelay.cmd`
+- macOS（ダブルクリック）: `start-relay.command`（初回のみ `chmod +x start-relay.command`）
+
+## 実行（CLI）
+- Windows: `./scripts/relay.ps1 -Rounds 3 -RequireGo -StopOnClean`
+- Linux/macOS: `bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean`
+- GOゲート: `dialogue/GO.txt` に `GO` を書くまで実装ループは起動しません（初期値は HOLD）。
+
+## 環境変数（主要）
+```
+OPENAI_API_BASE / OPENAI_API_KEY  または  LITELLM_PROXY_URL / LITELLM_API_KEY
+LLM_MODEL=gpt-4o-mini
+LLM_TEMPERATURE=0.15
+LLM_TOP_P=0.8
+LLM_TIMEOUT_MS / LLM_MAX_TOKENS / LLM_MAX_RETRIES / LLM_BACKOFF_MS
+LLM_CB_FAILURE_THRESHOLD / LLM_CB_OPEN_MS
+MAX_ROUNDS=6 / MAX_DIFF_LOC=400 / MAX_CHANGED_FILES=10 / MAX_API_TOKENS_PER_ROUND=150000
+```
+
+## IR（中間表現）
+- 定義: `schema/spec_ir.schema.json` / `schema/patch_ir.schema.json` / `schema/verify_ir.schema.json`
+- 交換は JSON のみ。差分は PatchIR の `hunk` に unified diff を格納。
+
+## ガードレール（要点）
+- 自然文混入: バリデータで非JSON開始・自然文ヒューリスティックを拒否。
+- パッチ不整合: unified diff 強制＋`git apply --3way`＋失敗時自動ロールバック。
+- 安全ゲート: GOゲート（人間承認）＋ PR の必須チェックでブロック。
+- 秘密情報: gitleaks／`.no-train` 運用／監査ログのメール・電話を匿名化。
+- 出力揺れ抑制: 低温度・Top-p固定。上限（ラウンド・差分LOC・変更ファイル数・トークン）で抑制。
+
+## 自動リレーの流れ（簡略）
+1) Implementer → PatchIR を生成（LLM本接続。JSON限定）。
+2) バリデータで PatchIR を検証（JSON Schema + ヒューリスティック）。
+3) Critic → VerifyIR を生成（ビルド/テスト/静的解析・root_cause）。
+4) 監査（JSONLチェーンに追記、PII匿名化）。
+5) 全OKなら: 差分計測 → パッチ適用（3way）→ スコアカード作成。
+
+## CI/CD ゲート（`.github/workflows/ci.yml`）
+- ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋cosign／CodeQL
+- Scorecard 連動: `diff_loc_leq` と `changed_files_leq`、および `build_ok` / `tests_ok` のいずれかが NG なら PR をブロック。
+
+## 監査と署名
+- 監査ログ: `audit/log-YYYYMMDD.jsonl`（各行に前行ハッシュを含むチェーン）。
+- 匿名化: メール・電話を簡易マスキングして保存。
+- 署名: `Audit-Log-Sign` ワークフローで日次署名（Secrets に cosign 鍵が必要）。
+
+## トラブルシュート（抜粋）
+- JSON不正 → `scripts/validate_json.mjs` のエラーを確認。温度や出力長を調整。
+- パッチ適用失敗 → 競合を解消後に再試行。自動ロールバックで作業空間は保全。
+- CI不合格 → `review/reports/scorecard.json` とCIログの該当箇所を参照。
+
+## 既知の拡張ポイント
+- 差分LOC・変更ファイルの厳格化（変更前後の AST/CFG ベース評価など）。
+- SAST/Secrets の結果を VerifyIR/scorecard に集約して可視化。
+- LLM ベンダ冗長化（ルーティング・フェイルオーバ）。
+
 目的
 **ディレクター（人間）**の監督下で、**実装エージェント（Implementer）とレビューエージェント（Critic）がIR（中間表現：Intermediate Representation）**中心に協調し、高品質・安全・可監査なコードを継続的に生成するためのフレームワーク。
 自然言語は最小化し、**JSON＋差分（unified diff）**を唯一の交換形式とします。
