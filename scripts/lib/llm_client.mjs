@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "fs";
+import path from "path";
 import crypto from "crypto";
 
 function readEnv(name, fallback) {
@@ -20,8 +21,10 @@ function getConfig() {
     ? readEnv("CURSOR_API_KEY", readEnv("OPENAI_API_KEY", readEnv("LITELLM_API_KEY", "")))
     : readEnv("OPENAI_API_KEY", readEnv("LITELLM_API_KEY", readEnv("CURSOR_API_KEY", "")));
   const model = readEnv("LLM_MODEL", "gpt-4o-mini");
-  const temperature = Number(readEnv("LLM_TEMPERATURE", "0.15"));
-  const top_p = Number(readEnv("LLM_TOP_P", "0.8"));
+  const usePreset = String(readEnv("LLM_USE_PRESET", "true")).toLowerCase() === "true";
+  const preset = getModelPreset(provider, model);
+  const temperature = Number(readEnv("LLM_TEMPERATURE", usePreset ? String(preset.temperature) : "0.15"));
+  const top_p = Number(readEnv("LLM_TOP_P", usePreset ? String(preset.top_p) : "0.8"));
   const timeoutMs = Number(readEnv("LLM_TIMEOUT_MS", "45000"));
   const maxTokens = Number(readEnv("LLM_MAX_TOKENS", "1000"));
   const maxRetries = Number(readEnv("LLM_MAX_RETRIES", "3"));
@@ -44,6 +47,25 @@ function getConfig() {
     cbFailureThreshold,
     cbOpenMs,
   };
+}
+
+function getModelPreset(provider, model) {
+  const m = (model || "").toLowerCase();
+  // Defaults
+  let temperature = 0.15;
+  let top_p = 0.8;
+  // Heuristics by family
+  if (m.includes("llama") || m.includes("mistral") || m.includes("mixtral")) {
+    temperature = 0.10;
+    top_p = 0.8;
+  } else if (m.includes("gpt-4") || m.includes("gpt-4o") || m.includes("o3")) {
+    temperature = 0.15;
+    top_p = 0.8;
+  } else if (m.includes("claude")) {
+    temperature = 0.15;
+    top_p = 0.8;
+  }
+  return { temperature, top_p };
 }
 
 function ensureCacheDir() {
@@ -147,12 +169,33 @@ export async function callChatJson(messages) {
   throw lastErr || new Error("LLM call failed");
 }
 
-export function buildSystemPromptJsonOnly(schemaName) {
-  return [
-    "あなたは厳格なJSONエンジンです。",
-    "自然言語の文章・説明は禁止です。",
+function loadPromptFile(role) {
+  const base = readEnv("PROMPTS_DIR", "prompts");
+  const files = [
+    path.join(base, "system_common.txt"),
+    path.join(base, role === "critic" ? "system_critic.txt" : "system_implementer.txt"),
+  ];
+  const parts = [];
+  for (const f of files) {
+    try {
+      if (fs.existsSync(f)) {
+        parts.push(fs.readFileSync(f, "utf8").trim());
+      }
+    } catch {}
+  }
+  return parts.filter(Boolean).join("\n\n");
+}
+
+export function buildSystemPromptJsonOnly(schemaName, role = "implementer") {
+  const header = [
+    "あなたは厳格なJSON出力エンジンです。",
+    "自然言語の文章・説明・Markdownは禁止です。",
     `出力は必ず ${schemaName} のJSONオブジェクト1個のみ。`,
-    "先頭と末尾に余計なテキストを含めないでください。",
+    "キーはスキーマに一致、不要キーは出力しない。",
+    "コメント/末尾カンマ/改行以外の装飾を含めない。",
+    "不明な値は適切な既定値（空配列/空文字/false/0）を用いる。",
   ].join("\n");
+  const external = loadPromptFile(role);
+  return [header, external].filter(Boolean).join("\n\n");
 }
 
