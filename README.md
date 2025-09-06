@@ -105,7 +105,8 @@ bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean
 
 ## 環境変数（主要）
 ```
-OPENAI_API_BASE / OPENAI_API_KEY  または  LITELLM_PROXY_URL / LITELLM_API_KEY
+LLM_PROVIDER=cursor  # http | cursor
+CURSOR_API_BASE / CURSOR_API_KEY  または  OPENAI_API_BASE / OPENAI_API_KEY  または  LITELLM_PROXY_URL / LITELLM_API_KEY
 LLM_MODEL=gpt-4o-mini
 LLM_TEMPERATURE=0.15
 LLM_TOP_P=0.8

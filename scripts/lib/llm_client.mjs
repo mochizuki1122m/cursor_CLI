@@ -8,10 +8,17 @@ function readEnv(name, fallback) {
 }
 
 function getConfig() {
+  const provider = readEnv("LLM_PROVIDER", "http"); // http | cursor
+  // HTTP providers (OpenAI/LiteLLM/Cursor OpenAI-compatible endpoint)
   const baseFromOpenAI = readEnv("OPENAI_API_BASE", "");
   const baseFromLite = readEnv("LITELLM_PROXY_URL", "");
-  const apiBase = baseFromOpenAI || baseFromLite || "https://api.openai.com";
-  const apiKey = readEnv("OPENAI_API_KEY", readEnv("LITELLM_API_KEY", ""));
+  const baseFromCursor = readEnv("CURSOR_API_BASE", "");
+  const apiBase = provider === "cursor"
+    ? (baseFromCursor || baseFromOpenAI || baseFromLite || "https://api.openai.com")
+    : (baseFromOpenAI || baseFromLite || baseFromCursor || "https://api.openai.com");
+  const apiKey = provider === "cursor"
+    ? readEnv("CURSOR_API_KEY", readEnv("OPENAI_API_KEY", readEnv("LITELLM_API_KEY", "")))
+    : readEnv("OPENAI_API_KEY", readEnv("LITELLM_API_KEY", readEnv("CURSOR_API_KEY", "")));
   const model = readEnv("LLM_MODEL", "gpt-4o-mini");
   const temperature = Number(readEnv("LLM_TEMPERATURE", "0.15"));
   const top_p = Number(readEnv("LLM_TOP_P", "0.8"));
@@ -23,6 +30,7 @@ function getConfig() {
   const cbFailureThreshold = Number(readEnv("LLM_CB_FAILURE_THRESHOLD", "3"));
   const cbOpenMs = Number(readEnv("LLM_CB_OPEN_MS", "300000"));
   return {
+    provider,
     apiBase,
     apiKey,
     model,
@@ -65,7 +73,7 @@ async function sleep(ms) {
 export async function callChatJson(messages) {
   const cfg = getConfig();
   if (!cfg.apiKey) {
-    throw new Error("LLM API key is not configured (OPENAI_API_KEY or LITELLM_API_KEY)");
+    throw new Error("LLM API key is not configured (use CURSOR_API_KEY or OPENAI_API_KEY/LITELLM_API_KEY)");
   }
   // Circuit breaker
   const cb = readCircuitState(cfg.cbFile);
