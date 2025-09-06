@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schema/spec_ir.schema.json",
+  "title": "SpecIR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "intent", "constraints", "targets", "acceptance"],
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1 },
+    "intent": { "type": "string", "enum": ["bugfix", "feature", "refactor"] },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "region": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "integer", "minimum": 1 },
+              "to": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
