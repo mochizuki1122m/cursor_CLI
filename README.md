@@ -107,16 +107,24 @@ cp .env.example .env
 # LITELLM_API_KEY=your-gateway-access-token
 # OPENAI_API_BASE=$LITELLM_PROXY_URL
 # OPENAI_API_KEY=$LITELLM_API_KEY
+# LLM_TEMPERATURE=0.15
+# LLM_TOP_P=0.8
 
 
 Windows（PowerShell）:
 
+npm install
+pip install -r requirements.txt
+cp .env.example .env
 npm run setup
-npm run env:load
+./scripts/relay.ps1 -Rounds 3 -RequireGo
+./scripts/relay.ps1 -Rounds 5 -StopOnClean
 
 
 Linux/macOS:
 
+npm install
+pip install -r requirements.txt
 cp .env.example .env
 npm run setup
 
@@ -159,36 +167,32 @@ VerifyIR（検証結果）
 
 実行（エンドツーエンド）
 PowerShell（Windows）
-npm run env:load
 ./scripts/relay.ps1 -Rounds 3 -RequireGo
 # -> dialogue/concept_summary.md を確認し、dialogue/GO.txt に 'GO' または訂正を記入
 ./scripts/relay.ps1 -Rounds 5 -StopOnClean
 
-Linux/macOS（bash / pwsh）
-pwsh -File scripts/env.ps1
-pwsh -File scripts/relay.ps1 -Rounds 3 -RequireGo
-pwsh -File scripts/relay.ps1 -Rounds 5 -StopOnClean
+Linux/macOS（bash）
+bash scripts/relay.sh --rounds 3 --require-go
+bash scripts/relay.sh --rounds 5 --stop-on-clean
 
 スクリプト要点（抜粋）
 
-scripts/relay.ps1
+scripts/relay.ps1（抜粋）
 
 param([int]$Rounds=3,[switch]$RequireGo,[switch]$StopOnClean)
-. ./scripts/env.ps1
-
 if ($RequireGo) {
   if (-not (Test-Path dialogue/GO.txt)) { throw "GO.txt がありません" }
   if ((Get-Content dialogue/GO.txt -Raw).Trim() -ne "GO") { throw "GO承認が必要" }
 }
-
 for ($i=1; $i -le $Rounds; $i++) {
-  node scripts/run_implementer.mjs `
-    | node scripts/validate_json.mjs schema/patch_ir.schema.json `
-    > patches/patch_ir.json
+  node scripts/run_implementer.mjs |
+    node scripts/validate_json.mjs schema/patch_ir.schema.json |
+    Out-File -FilePath patches/patch_ir.json -Encoding utf8
 
-  node scripts/run_critic.mjs < patches/patch_ir.json `
-    | node scripts/validate_json.mjs schema/verify_ir.schema.json `
-    > review/reports/verify_ir.json
+  Get-Content patches/patch_ir.json -Raw |
+    node scripts/run_critic.mjs |
+    node scripts/validate_json.mjs schema/verify_ir.schema.json |
+    Out-File -FilePath review/reports/verify_ir.json -Encoding utf8
 
   node scripts/audit_append.mjs review/reports/verify_ir.json
 
@@ -213,7 +217,7 @@ review/reports/scorecard.json（例）
 
 CI/CD ゲート（GitHub Actions 例）
 
-.github/workflows/ci.yml
+.github/workflows/ci.yml（本リポジトリに同梱の実体と同一）
 
 name: CI-Gates
 on:
@@ -222,14 +226,22 @@ on:
 jobs:
   lint-test-security:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '18' }
+        with:
+          node-version: '18'
       - uses: actions/setup-python@v5
-        with: { python-version: '3.10' }
-      - run: npm ci || npm install
-      - run: pip install -r requirements.txt
+        with:
+          python-version: '3.10'
+      - name: Install Node deps
+        run: npm ci || npm install
+      - name: Install Python deps
+        run: pip install -r requirements.txt
       - name: ESLint
         run: npx eslint .
       - name: PyTest
@@ -240,11 +252,21 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
       - name: SBOM / CycloneDX
         run: npx @cyclonedx/cyclonedx-npm --output-file sbom.json
-      - name: Cosign 署名
-        run: cosign sign-blob --yes --key cosign.key sbom.json
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Cosign sign SBOM (optional)
+        if: ${{ secrets.COSIGN_PRIVATE_KEY != '' }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          echo "$COSIGN_PRIVATE_KEY" | base64 -d > cosign.key
+          cosign sign-blob --yes --key cosign.key sbom.json
+          rm -f cosign.key
       - name: CodeQL Init
         uses: github/codeql-action/init@v3
-        with: { languages: 'javascript,python' }
+        with:
+          languages: 'javascript,python'
       - name: CodeQL Analyze
         uses: github/codeql-action/analyze@v3
 
