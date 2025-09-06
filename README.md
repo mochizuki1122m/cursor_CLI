@@ -352,3 +352,219 @@ CI/CD（Continuous Integration / Continuous Delivery）
 
 KPI（Key Performance Indicator）
 
+失敗モードと対策（要点）
+
+自然言語混入 → JSON限定出力・JSONスキーマ検証・自然文検知（ASCII/日本語比率、句読点ヒューリスティック）を適用します。
+
+パッチ不整合（適用失敗/競合）→ 最小差分（Unified diff）を強制し、git apply --3way と自動ロールバックで保全します。
+
+安全ゲート形骸化 → 必須ステータスチェックとブロック条件をすべてPRの必須チェックに設定し、未合格はマージ不可にします。
+
+秘密情報流出 → 秘密検出（gitleaks）、学習禁止ラベル（.no-train）、対話ログのPII匿名化を徹底します。
+
+エージェント暴走 → Director（人間）の GOゲート、反復上限、費用・トークン上限で統制します。
+
+監査欠落 → 完全監査証跡（JSON Lines）と不可改ざん署名（署名付きアーティファクト）を実施します。
+
+
+IR（中間表現）レイヤの強化
+
+2.1 スキーマ（JSON Schema）定義
+
+仕様IR、パッチIR、検証IR の3系統を固定します。自然言語は許可しません。以下は参考スキーマ（概略）です。実体は schema/*.schema.json を参照してください。
+
+```json
+// schema/spec_ir.schema.json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SpecIR",
+  "type": "object",
+  "required": ["task_id", "intent", "targets", "acceptance"],
+  "properties": {
+    "task_id": {"type": "string", "pattern": "^[A-Z0-9_-]{6,}$"},
+    "intent": {"type": "string", "enum": ["bugfix", "feature", "refactor"]},
+    "constraints": {"type": "array", "items": {"type": "string"}, "default": []},
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": {"type": "string"},
+          "region": {
+            "type": "object",
+            "properties": {
+              "from": {"type": "integer", "minimum": 1},
+              "to": {"type": "integer", "minimum": 1}
+            },
+            "required": ["from", "to"]
+          }
+        }
+      }
+    },
+    "acceptance": {"type": "array", "items": {"type": "string"}}
+  }
+}
+```
+
+```json
+// schema/patch_ir.schema.json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PatchIR",
+  "type": "object",
+  "required": ["task_id", "patches"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "patches": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "hunk"],
+        "properties": {
+          "path": {"type": "string"},
+          "hunk": {"type": "string", "pattern": "^@@[\\s\\S]*"},
+          "risk": {"type": "array", "items": {"type": "string"}, "default": []},
+          "notes": {"type": "array", "items": {"type": "string"}, "default": []}
+        }
+      }
+    }
+  }
+}
+```
+
+```json
+// schema/verify_ir.schema.json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VerifyIR",
+  "type": "object",
+  "required": ["task_id", "build", "tests", "static"],
+  "properties": {
+    "task_id": {"type": "string"},
+    "build": {"type": "object", "required": ["ok"], "properties": {
+      "ok": {"type": "boolean"}, "logs_path": {"type": "string"}
+    }},
+    "tests": {"type": "object", "required": ["ok"], "properties": {
+      "ok": {"type": "boolean"},
+      "failed": {"type": "array", "items": {"type": "string"}},
+      "report": {"type": "string"}
+    }},
+    "static": {"type": "object", "required": ["ok"], "properties": {
+      "ok": {"type": "boolean"},
+      "violations": {"type": "array", "items": {"type": "string"}}
+    }},
+    "root_cause": {"type": "array", "items": {
+      "type": "object",
+      "required": ["path", "line", "reason"],
+      "properties": {"path": {"type": "string"}, "line": {"type": "integer"}, "reason": {"type": "string"}}
+    }}
+  }
+}
+```
+
+2.2 バリデータ（実行前検査）
+
+JSON Schema 検証で Implementer（実装）／Critic（レビュー）の両出力を拒否可能にします。自然文遮断として、JSON以外（先頭が { 以外）は即時エラーとし、英字連続や句読点分布によるヒューリスティックで拒否します。
+
+
+プロセス制御（Director主導の厳格化）
+
+3.1 GOゲート（人間承認）
+
+Director（人間）が dialogue/GO.txt に GO または修正指示を記載しない限り実装ループを起動しません。scripts/relay.ps1 -RequireGo／scripts/relay.sh --require-go で強制します。
+
+3.2 反復制限・費用制限
+
+ラウンド上限、APIトークン上限、1ラウンドあたり最大差分LOC、最大変更ファイル数を環境変数で固定し、逸脱時は停止します。
+
+```bash
+MAX_ROUNDS=6
+MAX_CHANGED_FILES=10
+MAX_DIFF_LOC=400
+MAX_API_TOKENS_PER_ROUND=150000
+```
+
+3.3 二段レビュー（AI→人間）
+
+Critic（レビュー）が承認でも、GitHub の必須レビュー（CODEOWNERS）を通らないとマージできないようにします。
+
+
+セキュリティ・コンプライアンス（ゲートの強化）
+
+4.1 CI/CD（継続的インテグレーション／デリバリー）必須ゲート
+
+Lint（ESLint/Ruff など）、テスト（Jest/PyTest など）、SAST（Semgrep/Bandit など）、Secrets（gitleaks）、依存脆弱性（npm audit/pip-audit/safety）、SBOM（CycloneDX）＋署名（cosign）、コンテナスキャン（Trivy）、CodeQL を必須化します。
+
+4.2 ブランチ保護と署名
+
+保護ブランチでは必須チェック未合格の PR をマージ不可にします。コミット署名（GPG/Sigstore）と DCO（Developer Certificate of Origin）に準拠します。
+
+```markdown
+# .github/PULL_REQUEST_TEMPLATE.md（例）
+- [ ] DCO: 私はこの変更に対する権利を有し、適用ライセンスに同意します。
+- [ ] 機密・個人情報を含んでいません。
+- [ ] 受け入れ条件（Acceptance）を満たすE2E/単体テストが通過しています。
+```
+
+
+エージェント統制（Implementer／Critic）
+
+5.1 出力制約（ログ確率・JSONのみ）
+
+Cursor CLI（cursor-agent）には system で JSON 限定・自然文禁止を設定します。低温度（temperature 0.1〜0.2）と Top-p 0.8、出力トークン上限短めで決定性を確保します。日本語優先が必要な場合は logit bias などで英語トークンに負バイアスを設定します。
+
+5.2 二者投票／スコアカード
+
+Critic はスコアカード（0/1）で合否を返します。NG 項目が 1 つでもあれば不合格とします（ビルド／テスト／静的解析／依存／秘密／差分LOC／変更ファイル数／禁止API）。必要に応じて Secondary Critic を追加し、合議（クォーラム）で決定します。
+
+
+監査・ロギング・可観測性
+
+6.1 完全監査証跡（改ざん耐性）
+
+JSON Lines で全イベントを audit/log-YYYYMMDD.jsonl に追記します。各行に前行の SHA-256 を含めるハッシュ連鎖で不可改ざん性を担保し、ローテーション時に cosign で署名します。
+
+```json
+{"ts":"2025-09-06T14:23:11+09:00","event":"IMPLEMENTER_PATCH","task_id":"ABC123","sha_prev":"...","sha_self":"..."}
+```
+
+6.2 メトリクス（KPI）
+
+テスト合格率、静的解析違反/PR、反復回数、平均収束時間、欠陥密度（差分LOC あたり）を定期集計し、劣化検知時は閾値で自動失速（反復停止）して Director が確認します。
+
+
+再現性・回復性
+
+作業空間は git worktree 等で隔離し、常に復元可能な状態を維持します。パッチ適用に失敗した場合は自動ロールバックし、VerifyIR に失敗理由を格納します。連続失敗・SAST 再発・秘密検出時は強制停止し、Director が審査します。
+
+
+スクリプト雛形（PowerShell / bash の要点）
+
+PowerShell（scripts/relay.ps1）は GO ゲート・IR検証・監査追記・停止条件判定を順に行います。bash（scripts/relay.sh）も同様の流れで動作します（--require-go／--stop-on-clean などの引数に対応します）。
+
+
+プロンプト（出力制約の最小例）
+
+Implementer（実装）向け system:
+
+あなたは実装エージェントです。自然言語の文章は禁止します。出力は必ず PatchIR（JSON）で、schema/patch_ir.schema.json に適合させます。差分は unified diff を hunk に入れてください。コード以外の説明は notes に箇条書きで最小限とします。
+
+Critic（レビュー）向け system:
+
+あなたはレビューエージェントです。自然言語は禁止します。入力の PatchIR を検証し、VerifyIR（JSON）だけを出力します。ビルド／テスト／静的解析の成否と root_cause を厳密に返してください。スキーマに不適合ならすべて false とし、違反理由を violations に追加します。
+
+
+追加の運用ガード
+
+禁止APIリスト（例：child_process.exec の使用）を Semgrep ルールで検出して自動 NG とします。最大差分 LOC 超過時は Director レビュー必須に切り替えます。モデル最適化として、LLaMA/Mistral 系には差分テキストを主に、GPT/Gemini 系には JSON スキーマを主にします。出力揺れを抑えるため temperature=0.1〜0.2、Top-p=0.8 を目安に設定します。
+
+
+まとめ
+
+IR 固定（JSON＋diff）・スキーマ検証・強制ゲート・監査署名・ロールバックを導入すると、Implementer（実装）× Critic（レビュー）の自動リレーを高品質・安全・可監査にできます。Director（人間）による GO ゲートと二段レビューで最終責任を担保します。これらを既存の Cursor CLI（cursor-agent）と GitHub Actions に薄く重ねるだけで、実運用レベルの堅牢性に到達します。
+
+
+付録：用語（略称（正式名称））
+
