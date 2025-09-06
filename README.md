@@ -25,6 +25,15 @@ cp .env.example .env
 
 起動後は `patches/patch_ir.json` と `review/reports/verify_ir.json`、監査 `audit/log-YYYYMMDD.jsonl` が生成されます。
 
+### 何を開発するか（Goal）の明記手順
+1) 新規ゴールの雛形を作成します。
+```
+node scripts/new_goal.mjs FEAT-001   # 引数省略可（タイムスタンプID）
+```
+2) 生成された `tickets/FEAT-001/spec_ir.json` を編集し、対象ファイルや受入条件を記載します。
+3) `dialogue/GO.txt` を `GO` に変更すると、そのゴールを元に実装ループが開始されます。
+4) 進行中の最新ゴールは自動で検出され、Implementerに要約（intent/targets/constraints/acceptance）が渡ります。
+
 ## 前提条件（推奨環境）
 - OS: Windows 10/11, Linux, macOS
 - 必須: Git / Node.js 18+ / Python 3.10+
