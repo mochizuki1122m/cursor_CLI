@@ -9,9 +9,21 @@ fs.mkdirSync(dir, { recursive: true });
 const specPath = path.join(dir, "spec_ir.json");
 if (!fs.existsSync(specPath)) {
   let template = {};
-  try { template = JSON.parse(fs.readFileSync("templates/spec_ir.example.json", "utf8")); } catch {}
-  template.task_id = id.toUpperCase();
-  fs.writeFileSync(specPath, JSON.stringify(template, null, 2));
+  const tPaths = [
+    "templates/spec_ir.template.json",
+    "templates/spec_ir.example.json"
+  ];
+  for (const tp of tPaths) {
+    try { template = JSON.parse(fs.readFileSync(tp, "utf8")); break; } catch {}
+  }
+  const nowId = id.toUpperCase();
+  const nowStamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0,12);
+  const s = JSON.stringify(template);
+  const filled = s
+    .replace(/FEAT-YYYYMMDD-HHMM/g, nowId)
+    .replace(/\$\{MAX_DIFF_LOC\}/g, process.env.MAX_DIFF_LOC || "400")
+    .replace(/\$\{MAX_CHANGED_FILES\}/g, process.env.MAX_CHANGED_FILES || "10");
+  fs.writeFileSync(specPath, JSON.stringify(JSON.parse(filled), null, 2));
 }
 
 const goPath = "dialogue/GO.txt";

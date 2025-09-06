@@ -30,7 +30,7 @@ cp .env.example .env
 ```
 node scripts/new_goal.mjs FEAT-001   # 引数省略可（タイムスタンプID）
 ```
-2) 生成された `tickets/FEAT-001/spec_ir.json` を編集し、対象ファイルや受入条件を記載します。
+2) 生成された `tickets/FEAT-001/spec_ir.json` を編集します（最適化済みテンプレートが展開されます）。
 3) `dialogue/GO.txt` を `GO` に変更すると、そのゴールを元に実装ループが開始されます。
 4) 進行中の最新ゴールは自動で検出され、Implementerに要約（intent/targets/constraints/acceptance）が渡ります。
 

@@ -1,0 +1,19 @@
+{
+  "task_id": "FEAT-YYYYMMDD-HHMM",
+  "intent": "feature",
+  "constraints": [
+    "CI: ESLint clean",
+    "CI: PyTest passes",
+    "SAST: Semgrep clean",
+    "Secrets: gitleaks clean",
+    "Diff: <= ${MAX_DIFF_LOC}",
+    "Files: <= ${MAX_CHANGED_FILES}"
+  ],
+  "targets": [
+    { "path": "src/module/file.ts", "region": { "from": 1, "to": 200 } }
+  ],
+  "acceptance": [
+    "新規機能のE2Eシナリオが成功する",
+    "ユニットテストが追加・更新され、全て合格する"
+  ]
+}
