@@ -8,6 +8,28 @@ Implementer（実装）と Critic（レビュー）が IR（JSON＋diff）を介
 - CIゲート: ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋署名／CodeQL とスコアカード閾値で PR をブロック。
 - ダブルクリック起動: Windows（StartRelay.cmd）、macOS（start-relay.command）。
 
+## クイックスタート（最短5分）
+- 1) 依存を入れます。
+  - Node.js 18+ / Python 3.10+ / Git（インストール済みであること）
+  - リポジトリ直下で次を実行:
+```
+npm install
+pip install -r requirements.txt
+cp .env.example .env
+```
+- 2) ダブルクリックで起動します。
+  - Windows: エクスプローラーで `StartRelay.cmd` をダブルクリック
+  - macOS: Finderで `start-relay.command` をダブルクリック（初回のみ `chmod +x start-relay.command`）
+- 3) GOゲートを開けます。
+  - 初回は `dialogue/GO.txt` が `HOLD` です。内容を `GO` に変更して保存すると実装ループが進みます。
+
+起動後は `patches/patch_ir.json` と `review/reports/verify_ir.json`、監査 `audit/log-YYYYMMDD.jsonl` が生成されます。
+
+## 前提条件（推奨環境）
+- OS: Windows 10/11, Linux, macOS
+- 必須: Git / Node.js 18+ / Python 3.10+
+- 推奨: Cursor CLI（`@cursor/cli`）または LiteLLM 経由のAPI接続
+
 ## ディレクトリ構成
 ```
 .
@@ -60,15 +82,26 @@ Implementer（実装）と Critic（レビュー）が IR（JSON＋diff）を介
 ```
 
 ## セットアップ
-- 共通
-  1) npm install  2) pip install -r requirements.txt  3) cp .env.example .env
-- Windows（ダブルクリック）: `StartRelay.cmd`
-- macOS（ダブルクリック）: `start-relay.command`（初回のみ `chmod +x start-relay.command`）
+- 共通（コマンド）
+```
+npm install
+pip install -r requirements.txt
+cp .env.example .env
+```
+- ダブルクリック起動
+  - Windows: `StartRelay.cmd`
+  - macOS: `start-relay.command`（初回のみ `chmod +x start-relay.command`）
 
-## 実行（CLI）
-- Windows: `./scripts/relay.ps1 -Rounds 3 -RequireGo -StopOnClean`
-- Linux/macOS: `bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean`
-- GOゲート: `dialogue/GO.txt` に `GO` を書くまで実装ループは起動しません（初期値は HOLD）。
+## 起動方法（CLI）
+- Windows（PowerShell）:
+```
+./scripts/relay.ps1 -Rounds 3 -RequireGo -StopOnClean
+```
+- Linux/macOS（bash）:
+```
+bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean
+```
+- GOゲート: `dialogue/GO.txt` に `GO` を書くまで実装ループは起動しません（初期値は `HOLD`）。
 
 ## 環境変数（主要）
 ```
@@ -86,10 +119,8 @@ MAX_ROUNDS=6 / MAX_DIFF_LOC=400 / MAX_CHANGED_FILES=10 / MAX_API_TOKENS_PER_ROUN
 - 交換は JSON のみ。差分は PatchIR の `hunk` に unified diff を格納。
 
 ## バリデータ（実行前検査）
-- JSON Schemaで Implementer／Critic の出力を厳格に検証し、不一致は即時エラーにします。
-- 自然文遮断を行います。
-  - 先頭が「{」で始まらない出力は即時エラー。
-  - 英字の長連続や句読点過多などのヒューリスティックでプローズ混入を検知し拒否します。
+- JSON Schema 2020-12 で Implementer／Critic 出力を厳格に検証（不一致は即エラー）。
+- 自然文遮断（非JSON開始の拒否＋英字長連続/句読点過多のヒューリスティック）。
 
 ## プロセス制御（Director主導）
 - GOゲート（人間承認）: `dialogue/GO.txt` に Director が「GO」または修正指示を記載しない限り起動しません（`-RequireGo`／`--require-go`）。
@@ -115,6 +146,13 @@ MAX_API_TOKENS_PER_ROUND=150000
 4) 監査（JSONLチェーンに追記、PII匿名化）。
 5) 全OKなら: 差分計測 → パッチ適用（3way）→ スコアカード作成。
 
+## 生成物（どこを見ればよいか）
+- `patches/patch_ir.json`: Implementer が出した PatchIR
+- `review/reports/verify_ir.json`: Critic の検証結果 VerifyIR
+- `review/reports/analysis.json`: 差分LOC・変更ファイル数の計測
+- `review/reports/scorecard.json`: ゲート判定の要約（CIで参照）
+- `audit/log-YYYYMMDD.jsonl`: 全イベントの監査ログ（前行ハッシュ連鎖）
+
 ## CI/CD ゲート（`.github/workflows/ci.yml`）
 - ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋cosign／CodeQL
 - Scorecard 連動: `diff_loc_leq` と `changed_files_leq`、および `build_ok` / `tests_ok` のいずれかが NG なら PR をブロック。
@@ -128,6 +166,14 @@ MAX_API_TOKENS_PER_ROUND=150000
 - JSON不正 → `scripts/validate_json.mjs` のエラーを確認。温度や出力長を調整。
 - パッチ適用失敗 → 競合を解消後に再試行。自動ロールバックで作業空間は保全。
 - CI不合格 → `review/reports/scorecard.json` とCIログの該当箇所を参照。
+
+## よくある質問（FAQ）
+- ダブルクリックで何が行われますか？
+  - 依存導入（未導入時のみ）→ `.env` 初期化 → 必要ディレクトリ作成 → リレー起動（GOゲート有効）です。
+- GOを記入する場所は？
+  - `dialogue/GO.txt` の全行を `GO` にしてください（大文字）。
+- LLMの接続先はどこで変えますか？
+  - `.env` の `OPENAI_API_BASE/KEY` または `LITELLM_PROXY_URL/API_KEY` を編集します。
 
 ## 既知の拡張ポイント
 - 差分LOC・変更ファイルの厳格化（変更前後の AST/CFG ベース評価など）。
