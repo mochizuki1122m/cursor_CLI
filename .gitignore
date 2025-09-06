@@ -1,0 +1,10 @@
+node_modules/
+audit/*.jsonl
+patches/*.json
+review/reports/*.json
+sbom.json
+logs/
+.env
+.env.local
+cosign.key
+.cache/

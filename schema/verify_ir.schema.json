@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schema/verify_ir.schema.json",
+  "title": "VerifyIR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "build", "tests", "static"],
+  "properties": {
+    "task_id": { "type": "string" },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "logs_path": { "type": "string" }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "failed": { "type": "array", "items": { "type": "string" } },
+        "report": { "type": "string" }
+      }
+    },
+    "static": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "violations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "root_cause": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "line": { "type": "integer" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+VerifyIR(JSON)のみを出力します。build/tests/static の各 ok を厳密に判定し、必要に応じて root_cause を返してください。スキーマ不適合時は各 ok=false とし、違反理由を static.violations に追加します。不要なキーは出力しないでください。

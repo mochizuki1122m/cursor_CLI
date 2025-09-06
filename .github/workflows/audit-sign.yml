@@ -1,0 +1,27 @@
+name: Audit-Log-Sign
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+jobs:
+  sign-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Sign latest audit log if present
+        if: ${{ secrets.COSIGN_PRIVATE_KEY != '' }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -e
+          latest=$(ls -1 audit/log-*.jsonl 2>/dev/null | tail -n 1 || true)
+          if [ -z "$latest" ]; then echo "no audit logs"; exit 0; fi
+          echo "$COSIGN_PRIVATE_KEY" | base64 -d > cosign.key
+          cosign sign-blob --yes --key cosign.key "$latest"
+          rm -f cosign.key

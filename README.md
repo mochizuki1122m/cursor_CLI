@@ -1,332 +1,195 @@
-目的
-**ディレクター（人間）**の監督下で、**実装エージェント（Implementer）とレビューエージェント（Critic）がIR（中間表現：Intermediate Representation）**中心に協調し、高品質・安全・可監査なコードを継続的に生成するためのフレームワーク。
-自然言語は最小化し、**JSON＋差分（unified diff）**を唯一の交換形式とします。
+[日本語](README.md) | [English](README.en.md)
 
-特徴（要点）
+## 目的
+Implementer（実装）と Critic（レビュー）が IR（JSON＋diff）を介して安全に自動リレーし、Director（人間）が GO ゲートで最終承認できる、堅牢で監査可能な最小基盤を提供します。
 
-厳格な品質統制：多層レビュー（AIレビュー＋CIゲート＋人間レビュー）
+## できること（概要）
+- IR固定と機械検証: SpecIR／PatchIR／VerifyIR を JSON Schema 2020-12 で固定。すべての出力はスキーマ検証を強制。
+- ガードレール: 自然文混入の拒否、差分（unified diff）強制、GOゲート、反復・コスト上限、監査（JSONLチェーン＋署名）。
+- 自動リレー: Implementer→PatchIR → Critic→VerifyIR → 監査 →（合格時）パッチ適用・スコアカード作成。
+- CIゲート: ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋署名／CodeQL とスコアカード閾値で PR をブロック。
+- ダブルクリック起動: Windows（StartRelay.cmd）、macOS（start-relay.command）。
 
-セキュリティファースト：SAST（静的アプリケーションセキュリティテスト）／依存脆弱性／秘密検出／SBOM／CodeQL
+## クイックスタート（最短5分）
+- 1) 依存を入れます。
+  - Node.js 18+ / Python 3.10+ / Git（インストール済みであること）
+  - リポジトリ直下で次を実行:
+```
+npm install
+pip install -r requirements.txt
+cp .env.example .env
+```
+- 2) ダブルクリックで起動します。
+  - Windows: エクスプローラーで `StartRelay.cmd` をダブルクリック
+  - macOS: Finderで `start-relay.command` をダブルクリック（初回のみ `chmod +x start-relay.command`）
+- 3) GOゲートを開けます。
+  - 初回は `dialogue/GO.txt` が `HOLD` です。内容を `GO` に変更して保存すると実装ループが進みます。
 
-完全監査証跡：全イベントを JSON Lines で連鎖ハッシュ記録＋署名
+起動後は `patches/patch_ir.json` と `review/reports/verify_ir.json`、監査 `audit/log-YYYYMMDD.jsonl` が生成されます。
 
-継続的改善：Implementer↔Critic の反復／失敗の最小修正で収束
+### 何を開発するか（Goal）の明記手順
+1) 新規ゴールの雛形を作成します。
+```
+node scripts/new_goal.mjs FEAT-001   # 引数省略可（タイムスタンプID）
+```
+2) 生成された `tickets/FEAT-001/spec_ir.json` を編集します（最適化済みテンプレートが展開されます）。
+3) `dialogue/GO.txt` を `GO` に変更すると、そのゴールを元に実装ループが開始されます。
+4) 進行中の最新ゴールは自動で検出され、Implementerに要約（intent/targets/constraints/acceptance）が渡ります。
 
-IR固定：SpecIR／PatchIR／VerifyIR の 3 スキーマに厳格準拠（自然言語禁止）
+## 前提条件（推奨環境）
+- OS: Windows 10/11, Linux, macOS
+- 必須: Git / Node.js 18+ / Python 3.10+
+- 推奨: Cursor CLI（`@cursor/cli`）または LiteLLM 経由のAPI接続
 
-ディレクター承認ゲート：GO しない限り実装ループ不可
-
-モデル最適化：LLaMA/Mistral 系には diff 志向、GPT/Gemini 系には JSON スキーマ志向
-
-アーキテクチャ（概要）
-flowchart LR
-  Dir[ディレクター] --> FG[Feature Goal]
-  FG --> Agents[AIエージェント: Implementer & Critic]
-  Agents --> PR[Pull Request]
-
-  subgraph 基盤
-    Lite[LiteLLM プロキシ]
-    CI[CI/CD: GitHub Actions]
-    Repo[Git リポジトリ]
-  end
-
-  Agents --> Lite
-  PR --> Repo
-  Repo --> CI
-  CI --> Checks[必須ゲート]
-  Checks --> Merge[保護ブランチ]
-
-詳細シーケンス
-sequenceDiagram
-  autonumber
-  participant Human as ディレクター
-  participant KAD as Cursor CLI (コンセプト注入)
-  participant Impl as Implementer Agent
-  participant Crit as Critic Agent
-  participant GH as GitHub Actions
-  participant Checks as 必須ゲート
-  participant Main as 保護ブランチ
-
-  Human->>KAD: アイデア + product_concept.md
-  KAD-->>Impl: 概念/コンテキスト注入
-  Impl->>Human: 認識の要約提示
-  Human-->>KAD: GO/修正（dialogue/GO.txt）
-  loop 実装↔レビュー
-    Impl->>Crit: PatchIR（JSON）提出
-    Crit-->>Impl: VerifyIR（JSON）返却（合否・根因）
-  end
-  Impl->>GH: PR 作成
-  GH->>Checks: Lint/Test/SAST/Secrets/Deps/SBOM/Trivy/CodeQL
-  Checks-->>Main: すべて合格ならマージ
-
-ディレクトリ構成
+## ディレクトリ構成
+```
 .
-├── .cursor/                 # ルール/コマンド/MCP設定（任意）
-├── prompts/                 # エージェント用プロンプト（system等）
-├── dialogue/                # ゴール・要約・GO承認
-│   ├── product_concept.md
-│   ├── concept_summary.md
-│   └── GO.txt              # 'GO' または修正指示
-├── schema/                  # JSON Schema（IR定義）
+├── StartRelay.cmd
+├── start-relay.command
+├── .env.example
+├── .eslintrc.json
+├── .gitignore
+├── package.json
+├── requirements.txt
+├── README.md
+├── schema/
 │   ├── spec_ir.schema.json
 │   ├── patch_ir.schema.json
 │   └── verify_ir.schema.json
-├── patches/                 # PatchIR 出力（JSON）
-├── review/reports/          # VerifyIR・スコアカード
-├── change_summaries/        # 変更要約
-├── policy/                  # セキュリティ/スタイル/レビュー規約
-├── scripts/                 # 自動化スクリプト（PowerShell / bash / Node）
-├── .github/workflows/       # CI/CD（PRゲート）
-└── audit/                   # 監査ログ（JSONL＋署名）
+├── scripts/
+│   ├── relay.sh
+│   ├── relay.ps1
+│   ├── start.ps1
+│   ├── run_implementer.mjs
+│   ├── run_critic.mjs
+│   ├── validate_json.mjs
+│   ├── apply_patch_ir.mjs
+│   ├── analyze_patch_ir.mjs
+│   ├── make_scorecard.mjs
+│   └── lib/
+│       └── llm_client.mjs
+├── dialogue/
+│   └── GO.txt
+├── patches/
+│   └── patch_ir.json
+├── review/
+│   └── reports/
+│       ├── verify_ir.json
+│       ├── analysis.json
+│       └── scorecard.json
+├── audit/
+│   └── log-YYYYMMDD.jsonl
+├── prompts/
+│   └── .gitkeep
+├── policy/
+│   └── .gitkeep
+├── change_summaries/
+│   └── .gitkeep
+└── .github/
+    ├── PULL_REQUEST_TEMPLATE.md
+    └── workflows/
+        ├── ci.yml
+        └── audit-sign.yml
+```
 
-前提条件
-
-OS：Windows 10/11（PowerShell 5.1+）／Linux／macOS
-
-必須：Git / Node.js 18+ / Python 3.10+
-
-推奨：Cursor IDE・Cursor CLI（@cursor/cli）
-
-API：LiteLLM プロキシ（推奨）または各モデル直結
-
-CI：GitHub Actions（他CIでも置換可）
-
-セットアップ
-git clone https://github.com/your-org/ai-dev-team.git
-cd ai-dev-team
-
-# 依存
+## セットアップ
+- 共通（コマンド）
+```
 npm install
 pip install -r requirements.txt
-npm install -g @cursor/cli
-
-# 環境
 cp .env.example .env
-# 例:
-# LITELLM_PROXY_URL=http://your-gateway:8000
-# LITELLM_API_KEY=your-gateway-access-token
-# OPENAI_API_BASE=$LITELLM_PROXY_URL
-# OPENAI_API_KEY=$LITELLM_API_KEY
-
-
-Windows（PowerShell）:
-
-npm run setup
-npm run env:load
-
-
-Linux/macOS:
-
-cp .env.example .env
-npm run setup
-
-IR（中間表現）仕様
-SpecIR（要求仕様）
-{
-  "task_id": "ABC123",
-  "intent": "bugfix | feature | refactor",
-  "constraints": ["pytest::test_x passes", "flake8 clean"],
-  "targets": [
-    {"path": "src/x.py", "region": {"from": 120, "to": 220}}
-  ],
-  "acceptance": ["pytest::test_x passes"]
-}
-
-PatchIR（実装提案：JSON＋unified diff）
-{
-  "task_id": "ABC123",
-  "patches": [
-    {
-      "path": "src/x.py",
-      "hunk": "@@ -120,12 +120,15 @@\n ...diff 本文...\n",
-      "risk": ["api_break:false", "complexity:+1"],
-      "notes": []
-    }
-  ]
-}
-
-VerifyIR（検証結果）
-{
-  "task_id": "ABC123",
-  "build": {"ok": true, "logs_path": "logs/build.txt"},
-  "tests": {"ok": false, "failed": ["tests/test_x::test_edge"], "report": "logs/pytest.txt"},
-  "static": {"ok": false, "violations": ["E501 line too long src/x.py:137"]},
-  "root_cause": [{"path":"src/x.py","line":137,"reason":"IndexError path A"}]
-}
-
-
-厳密定義は schema/*.schema.json を参照。全出力はJSONスキーマ検証を通過しない限り無効。
-
-実行（エンドツーエンド）
-PowerShell（Windows）
-npm run env:load
-./scripts/relay.ps1 -Rounds 3 -RequireGo
-# -> dialogue/concept_summary.md を確認し、dialogue/GO.txt に 'GO' または訂正を記入
-./scripts/relay.ps1 -Rounds 5 -StopOnClean
-
-Linux/macOS（bash / pwsh）
-pwsh -File scripts/env.ps1
-pwsh -File scripts/relay.ps1 -Rounds 3 -RequireGo
-pwsh -File scripts/relay.ps1 -Rounds 5 -StopOnClean
-
-スクリプト要点（抜粋）
-
-scripts/relay.ps1
-
-param([int]$Rounds=3,[switch]$RequireGo,[switch]$StopOnClean)
-. ./scripts/env.ps1
-
-if ($RequireGo) {
-  if (-not (Test-Path dialogue/GO.txt)) { throw "GO.txt がありません" }
-  if ((Get-Content dialogue/GO.txt -Raw).Trim() -ne "GO") { throw "GO承認が必要" }
-}
-
-for ($i=1; $i -le $Rounds; $i++) {
-  node scripts/run_implementer.mjs `
-    | node scripts/validate_json.mjs schema/patch_ir.schema.json `
-    > patches/patch_ir.json
-
-  node scripts/run_critic.mjs < patches/patch_ir.json `
-    | node scripts/validate_json.mjs schema/verify_ir.schema.json `
-    > review/reports/verify_ir.json
-
-  node scripts/audit_append.mjs review/reports/verify_ir.json
-
-  $v = ConvertFrom-Json (Get-Content review/reports/verify_ir.json -Raw)
-  if ($v.build.ok -and $v.tests.ok -and $v.static.ok -and $StopOnClean) { break }
-}
-
-
-review/reports/scorecard.json（例）
-
-{
-  "build_ok": true,
-  "tests_ok": true,
-  "sast_ok": true,
-  "secrets_ok": true,
-  "deps_ok": true,
-  "sbom_ok": true,
-  "diff_loc_leq": 300,
-  "changed_files_leq": 8,
-  "banned_api_used": []
-}
-
-CI/CD ゲート（GitHub Actions 例）
-
-.github/workflows/ci.yml
-
-name: CI-Gates
-on:
-  pull_request:
-    branches: [ main ]
-jobs:
-  lint-test-security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '18' }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.10' }
-      - run: npm ci || npm install
-      - run: pip install -r requirements.txt
-      - name: ESLint
-        run: npx eslint .
-      - name: PyTest
-        run: pytest -q --maxfail=1 --disable-warnings
-      - name: Semgrep (SAST)
-        uses: returntocorp/semgrep-action@v1
-      - name: gitleaks (Secrets)
-        uses: gitleaks/gitleaks-action@v2
-      - name: SBOM / CycloneDX
-        run: npx @cyclonedx/cyclonedx-npm --output-file sbom.json
-      - name: Cosign 署名
-        run: cosign sign-blob --yes --key cosign.key sbom.json
-      - name: CodeQL Init
-        uses: github/codeql-action/init@v3
-        with: { languages: 'javascript,python' }
-      - name: CodeQL Analyze
-        uses: github/codeql-action/analyze@v3
-
-
-ブランチ保護：上記ステータスは必須に設定。通過しない PR はマージ不可。
-人的最終レビュー：CODEOWNERS によるレビュー必須。
-
-セキュリティ・コンプライアンス
-
-秘密検出：gitleaks を必須ゲート化
-
-依存脆弱性：npm audit／pip-audit／safety
-
-SAST：Semgrep／Bandit
-
-SBOM（Software Bill of Materials）：CycloneDX＋署名（cosign）
-
-CodeQL：高度解析
-
-禁止API：Semgrep ルールで検出して強制NG
-
-ログの機密保護：PII匿名化／.no-train ラベルによる学習禁止マーカー
-
-監査と可観測性
-
-監査ログ：audit/log-YYYYMMDD.jsonl に全イベントを追記
-
-各行に 前行ハッシュを含める連鎖（改ざん検出）
-
-ローテーション時に cosign 署名
-
-KPI：テスト合格率／静的解析違反／反復回数／収束時間／欠陥密度（差分LOCあたり）
-
-劣化時：自動失速（反復停止）→ ディレクター判断
-
-運用ポリシー（抜粋）
-
-自然言語禁止：Implementer／Critic の出力はJSONのみ。
-
-JSONスキーマ検証：不適合は即座に無効化。
-
-最小差分主義：大規模変更は Director の事前承認が必要。
-
-ラウンドとコスト上限：MAX_ROUNDS／MAX_DIFF_LOC／MAX_CHANGED_FILES／MAX_API_TOKENS_PER_ROUND
-
-停止条件：N 連続失敗、秘密検出、SAST 再発時は強制停止→人間判断。
-
-モデル最適化（実務目安）
-
-LLaMA／Mistral：diff テキスト志向、temperature=0.1〜0.2、top_p=0.8
-
-GPT／Gemini：JSON スキーマ志向（厳格）、出力トークン短め
-
-日本語優先：必要に応じ logit bias で英語トークンを抑制
-
-トラブルシュート
-
-Patch 適用失敗：git apply --3way、競合は VerifyIR に原因を格納。自動ロールバック。
-
-JSON 不正：scripts/validate_json.mjs で弾かれる。出力上限・温度を見直し。
-
-ゲート不合格：review/reports/verify_ir.json と CI の該当ログを確認。
-
-無限反復：-StopOnClean を有効化／MAX_ROUNDS を下げる。
-
-ライセンスと法的注意
-
-本テンプレートはサンプル。各種ツール・モデル・依存のライセンス遵守は利用者の責任。
-
-監査ログやレビュー出力に個人情報や秘密情報を含めないこと。
-
-SBOM／署名／ブランチ保護は組織のポリシーに沿って設定すること。
-
-付録：用語（略称（正式名称））
-
-IR（Intermediate Representation）
-
-SAST（Static Application Security Testing）
-
-SBOM（Software Bill of Materials）
-
-CI/CD（Continuous Integration / Continuous Delivery）
-
-KPI（Key Performance Indicator）
-
+```
+- ダブルクリック起動
+  - Windows: `StartRelay.cmd`
+  - macOS: `start-relay.command`（初回のみ `chmod +x start-relay.command`）
+
+## 起動方法（CLI）
+- Windows（PowerShell）:
+```
+./scripts/relay.ps1 -Rounds 3 -RequireGo -StopOnClean
+```
+- Linux/macOS（bash）:
+```
+bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean
+```
+- GOゲート: `dialogue/GO.txt` に `GO` を書くまで実装ループは起動しません（初期値は `HOLD`）。
+
+## 環境変数（主要）
+```
+LLM_PROVIDER=cursor  # http | cursor
+CURSOR_API_BASE / CURSOR_API_KEY  または  OPENAI_API_BASE / OPENAI_API_KEY  または  LITELLM_PROXY_URL / LITELLM_API_KEY
+LLM_MODEL=gpt-4o-mini
+LLM_TEMPERATURE=0.15
+LLM_TOP_P=0.8
+LLM_USE_PRESET=true  # モデル別プリセット（温度/Top-p）を自動適用
+PROMPTS_DIR=prompts  # systemプロンプト外部ファイルの読み込み場所
+LLM_TIMEOUT_MS / LLM_MAX_TOKENS / LLM_MAX_RETRIES / LLM_BACKOFF_MS
+LLM_CB_FAILURE_THRESHOLD / LLM_CB_OPEN_MS
+MAX_ROUNDS=6 / MAX_DIFF_LOC=400 / MAX_CHANGED_FILES=10 / MAX_API_TOKENS_PER_ROUND=150000
+```
+
+## IR（中間表現）
+- 定義: `schema/spec_ir.schema.json` / `schema/patch_ir.schema.json` / `schema/verify_ir.schema.json`
+- 交換は JSON のみ。差分は PatchIR の `hunk` に unified diff を格納。
+
+## バリデータ（実行前検査）
+- JSON Schema 2020-12 で Implementer／Critic 出力を厳格に検証（不一致は即エラー）。
+- 自然文遮断（非JSON開始の拒否＋英字長連続/句読点過多のヒューリスティック）。
+
+## プロセス制御（Director主導）
+- GOゲート（人間承認）: `dialogue/GO.txt` に Director が「GO」または修正指示を記載しない限り起動しません（`-RequireGo`／`--require-go`）。
+- 反復・費用の上限: ラウンド・APIトークン・差分LOC・変更ファイル数に上限を設け、逸脱時は停止します。
+```bash
+MAX_ROUNDS=6
+MAX_CHANGED_FILES=10
+MAX_DIFF_LOC=400
+MAX_API_TOKENS_PER_ROUND=150000
+```
+- 二段レビュー: Critic承認後も CODEOWNERS の必須レビューを通過しない限りマージ不可にします。
+
+## エージェント統制（Implementer／Critic）
+- 出力はJSONのみ（自然文禁止）。`schema/*.schema.json` に準拠させます。
+- 決定性重視: 温度は低温度（既定0.15、推奨0.1〜0.2）、Top-pは0.8、出力トークン短め。
+- 日本語優先が必要な場合は英語トークンに負のバイアス（logit bias）を適用します。
+- 二者投票／スコアカード: NGが1つでもあれば不合格。必要ならSecondary Criticで合議（クォーラム）。
+
+## 自動リレーの流れ（簡略）
+1) Implementer → PatchIR を生成（LLM本接続。JSON限定）。
+2) バリデータで PatchIR を検証（JSON Schema + ヒューリスティック）。
+3) Critic → VerifyIR を生成（ビルド/テスト/静的解析・root_cause）。
+4) 監査（JSONLチェーンに追記、PII匿名化）。
+5) 全OKなら: 差分計測 → パッチ適用（3way）→ スコアカード作成。
+
+## 生成物（どこを見ればよいか）
+- `patches/patch_ir.json`: Implementer が出した PatchIR
+- `review/reports/verify_ir.json`: Critic の検証結果 VerifyIR
+- `review/reports/analysis.json`: 差分LOC・変更ファイル数の計測
+- `review/reports/scorecard.json`: ゲート判定の要約（CIで参照）
+- `audit/log-YYYYMMDD.jsonl`: 全イベントの監査ログ（前行ハッシュ連鎖）
+
+## CI/CD ゲート（`.github/workflows/ci.yml`）
+- ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋cosign／CodeQL
+- Scorecard 連動: `diff_loc_leq` と `changed_files_leq`、および `build_ok` / `tests_ok` のいずれかが NG なら PR をブロック。
+
+## 監査と署名
+- 監査ログ: `audit/log-YYYYMMDD.jsonl`（各行に前行ハッシュを含むチェーン）。
+- 匿名化: メール・電話を簡易マスキングして保存。
+- 署名: `Audit-Log-Sign` ワークフローで日次署名（Secrets に cosign 鍵が必要）。
+
+## トラブルシュート（抜粋）
+- JSON不正 → `scripts/validate_json.mjs` のエラーを確認。温度や出力長を調整。
+- パッチ適用失敗 → 競合を解消後に再試行。自動ロールバックで作業空間は保全。
+- CI不合格 → `review/reports/scorecard.json` とCIログの該当箇所を参照。
+
+## よくある質問（FAQ）
+- ダブルクリックで何が行われますか？
+  - 依存導入（未導入時のみ）→ `.env` 初期化 → 必要ディレクトリ作成 → リレー起動（GOゲート有効）です。
+- GOを記入する場所は？
+  - `dialogue/GO.txt` の全行を `GO` にしてください（大文字）。
+- LLMの接続先はどこで変えますか？
+  - `.env` の `OPENAI_API_BASE/KEY` または `LITELLM_PROXY_URL/API_KEY` を編集します。
+
+## 既知の拡張ポイント
+- 差分LOC・変更ファイルの厳格化（変更前後の AST/CFG ベース評価など）。
+- SAST/Secrets の結果を VerifyIR/scorecard に集約して可視化。
+- LLM ベンダ冗長化（ルーティング・フェイルオーバ）。

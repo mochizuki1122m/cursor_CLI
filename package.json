@@ -1,0 +1,22 @@
+{
+  "name": "ai-dev-team",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "mkdir -p schema patches review/reports dialogue prompts policy change_summaries audit && touch dialogue/GO.txt",
+    "relay": "bash scripts/relay.sh --rounds 3 --require-go",
+    "lint": "eslint .",
+    "start:win": "StartRelay.cmd",
+    "start:mac": "./start-relay.command"
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "ajv-formats": "^2.1.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
