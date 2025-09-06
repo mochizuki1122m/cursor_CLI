@@ -25,6 +25,14 @@ jobs:
         run: npx eslint .
       - name: PyTest
         run: pytest -q --maxfail=1 --disable-warnings
+      - name: Build Scorecard
+        run: |
+          node scripts/analyze_patch_ir.mjs || true
+          node scripts/make_scorecard.mjs || true
+          test -f review/reports/scorecard.json && cat review/reports/scorecard.json || true
+      - name: Enforce Thresholds
+        run: |
+          node -e "const fs=require('fs');const s=JSON.parse(fs.readFileSync('review/reports/scorecard.json','utf8'));if(!s.build_ok||!s.tests_ok||!s.diff_loc_leq||!s.changed_files_leq){console.error('Scorecard gate failed');process.exit(1)}"
       - name: Semgrep (SAST)
         uses: returntocorp/semgrep-action@v1
       - name: gitleaks (Secrets)

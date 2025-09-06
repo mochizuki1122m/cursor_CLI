@@ -44,6 +44,7 @@ for ((i=1; i<=ROUNDS; i++)); do
 
   # Try to apply patch when verify suggests ok build (example policy; can be adjusted)
   if [[ "$CLEAN" == "true" ]]; then
+    node scripts/analyze_patch_ir.mjs || true
     node scripts/apply_patch_ir.mjs || true
     node scripts/make_scorecard.mjs || true
   fi
