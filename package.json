@@ -5,7 +5,9 @@
   "scripts": {
     "setup": "mkdir -p schema patches review/reports dialogue prompts policy change_summaries audit && touch dialogue/GO.txt",
     "relay": "bash scripts/relay.sh --rounds 3 --require-go",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "start:win": "StartRelay.cmd",
+    "start:mac": "./start-relay.command"
   },
   "dependencies": {
     "ajv": "^8.12.0",
