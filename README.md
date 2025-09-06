@@ -1,3 +1,5 @@
+[日本語](README.md) | [English](README.en.md)
+
 ## 目的
 Implementer（実装）と Critic（レビュー）が IR（JSON＋diff）を介して安全に自動リレーし、Director（人間）が GO ゲートで最終承認できる、堅牢で監査可能な最小基盤を提供します。
 
