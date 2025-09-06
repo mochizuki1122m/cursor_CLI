@@ -43,7 +43,7 @@
         "required": ["path", "line", "reason"],
         "properties": {
           "path": { "type": "string" },
-          "line": { "type": "integer", "minimum": 0 },
+          "line": { "type": "integer" },
           "reason": { "type": "string" }
         }
       }

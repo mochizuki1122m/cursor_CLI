@@ -4,13 +4,14 @@
   "title": "SpecIR",
   "type": "object",
   "additionalProperties": false,
-  "required": ["task_id", "intent", "constraints", "targets", "acceptance"],
+  "required": ["task_id", "intent", "targets", "acceptance"],
   "properties": {
-    "task_id": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "pattern": "^[A-Z0-9_-]{6,}$" },
     "intent": { "type": "string", "enum": ["bugfix", "feature", "refactor"] },
     "constraints": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string" },
+      "default": []
     },
     "targets": {
       "type": "array",

@@ -15,6 +15,22 @@ const stdin = await new Promise((resolve) => {
   process.stdin.on("data", (c) => (data += c));
   process.stdin.on("end", () => resolve(data));
 });
+// Natural language / non-JSON guardrails
+const trimmed = stdin.trimStart();
+if (!trimmed.startsWith("{")) {
+  console.error("Non-JSON output detected: payload must start with '{'");
+  process.exit(1);
+}
+// Simple heuristic: ratio of letters/punctuation typical for prose
+const asciiLetters = (trimmed.match(/[A-Za-z]{5,}/g) || []).length;
+const jpPunct = (trimmed.match(/[。、「」]/g) || []).length;
+const commas = (trimmed.match(/[,，]/g) || []).length;
+const periods = (trimmed.match(/[.。]/g) || []).length;
+const proseScore = asciiLetters + jpPunct + Math.max(0, commas - 3) + Math.max(0, periods - 3);
+if (proseScore > 50) {
+  console.error("Likely natural language detected: refuse non-JSON prose");
+  process.exit(1);
+}
 let payload;
 try {
   payload = JSON.parse(stdin);
