@@ -2,6 +2,15 @@
 import fs from "fs";
 import crypto from "crypto";
 
+function anonymize(obj) {
+  const json = JSON.stringify(obj);
+  // Very simple PII heuristic: email/phone patterns masking
+  const masked = json
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<redacted_email>")
+    .replace(/\b\+?\d{1,3}[ -]?\d{2,4}[ -]?\d{3,4}[ -]?\d{3,4}\b/g, "<redacted_phone>");
+  try { return JSON.parse(masked); } catch { return obj; }
+}
+
 const eventPath = process.argv[2];
 if (!eventPath) {
   console.error("Usage: node scripts/audit_append.mjs <event_json_path>");
@@ -24,7 +33,7 @@ if (fs.existsSync(logPath) && fs.statSync(logPath).size > 0) {
 const entry = {
   timestamp: now.toISOString(),
   event_path: eventPath,
-  event,
+  event: anonymize(event),
   prev_hash: prevHash
 };
 entry.hash = crypto

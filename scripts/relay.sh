@@ -41,4 +41,10 @@ for ((i=1; i<=ROUNDS; i++)); do
   if $STOP_ON_CLEAN && [[ "$CLEAN" == "true" ]]; then
     break
   fi
+
+  # Try to apply patch when verify suggests ok build (example policy; can be adjusted)
+  if [[ "$CLEAN" == "true" ]]; then
+    node scripts/apply_patch_ir.mjs || true
+    node scripts/make_scorecard.mjs || true
+  fi
 done
