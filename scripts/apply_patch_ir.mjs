@@ -55,10 +55,8 @@ if (res.status === 0) {
   process.exit(0);
 }
 
-// On failure, rollback working tree
+// On failure, do not modify working tree; keep patch file for inspection
 const stderr = (res.stderr || "").slice(0, 2000);
-run("git", ["reset", "--hard"], { stdio: "ignore" });
-run("git", ["clean", "-fd"], { stdio: "ignore" });
-console.error(JSON.stringify({ ok: false, error: "git apply failed", detail: stderr }));
+console.error(JSON.stringify({ ok: false, error: "git apply failed", detail: stderr, patch: tmpPatch }));
 process.exit(1);
 

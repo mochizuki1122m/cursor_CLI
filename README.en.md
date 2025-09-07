@@ -167,6 +167,7 @@ MAX_ROUNDS=6 / MAX_DIFF_LOC=400 / MAX_CHANGED_FILES=10 / MAX_API_TOKENS_PER_ROUN
 - `audit/log-YYYYMMDD.jsonl` — audit trail with chained hashes
 
 ## CI/CD Gates (`.github/workflows/ci.yml`)
+Note: The minimal distribution does not bundle `.github/workflows/*`. Add them in your own repo if needed.
 - ESLint / PyTest / Semgrep / gitleaks / CycloneDX + cosign / CodeQL
 - Scorecard enforcement: NG in `diff_loc_leq`, `changed_files_leq`, `build_ok`, or `tests_ok` blocks PRs.
 
