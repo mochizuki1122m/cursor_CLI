@@ -168,6 +168,7 @@ MAX_API_TOKENS_PER_ROUND=150000
 - `audit/log-YYYYMMDD.jsonl`: 全イベントの監査ログ（前行ハッシュ連鎖）
 
 ## CI/CD ゲート（`.github/workflows/ci.yml`）
+注: 最小配布物には `.github/workflows/*` は含まれていません。必要に応じて各自のリポジトリに追加してください。
 - ESLint／PyTest／Semgrep／gitleaks／CycloneDX＋cosign／CodeQL
 - Scorecard 連動: `diff_loc_leq` と `changed_files_leq`、および `build_ok` / `tests_ok` のいずれかが NG なら PR をブロック。
 

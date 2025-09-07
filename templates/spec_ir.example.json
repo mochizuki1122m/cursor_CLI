@@ -1,15 +1,14 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SpecIR",
-  "type": "object",
-  "required": ["task_id", "intent", "targets", "acceptance"],
-  "properties": {
-    "task_id": "FEAT-001",
-    "intent": "feature",
-    "constraints": ["tests pass", "lint clean"],
-    "targets": [
-      { "path": "src/example.ts", "region": { "from": 1, "to": 200 } }
-    ],
-    "acceptance": ["pytest -q passes"]
-  }
+  "task_id": "FEAT-001",
+  "intent": "feature",
+  "constraints": [
+    "tests pass",
+    "lint clean"
+  ],
+  "targets": [
+    { "path": "README.md", "region": { "from": 1, "to": 200 } }
+  ],
+  "acceptance": [
+    "pytest -q passes"
+  ]
 }

@@ -3,6 +3,7 @@ if ($RequireGo) {
   if (-not (Test-Path dialogue/GO.txt)) { throw "GO.txt がありません" }
   if ((Get-Content dialogue/GO.txt -Raw).Trim() -ne "GO") { throw "GO承認が必要" }
 }
+New-Item -ItemType Directory -Force -Path patches,review/reports,audit,dialogue | Out-Null
 for ($i=1; $i -le $Rounds; $i++) {
   node scripts/run_implementer.mjs |
     node scripts/validate_json.mjs schema/patch_ir.schema.json |

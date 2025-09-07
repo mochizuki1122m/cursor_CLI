@@ -3,8 +3,8 @@ import fs from "fs";
 import { callChatJson, buildSystemPromptJsonOnly } from "./lib/llm_client.mjs";
 
 const taskId = process.env.TASK_ID || "DEMO-TASK";
-const targetPath = process.env.TARGET_PATH || "README.md";
 const specPath = process.env.SPEC_PATH || findLatestSpecPath();
+const targetPath = process.env.TARGET_PATH || getPrimaryTargetPath(specPath) || "README.md";
 const specSummary = loadSpecSummary(specPath);
 
 const system = buildSystemPromptJsonOnly("PatchIR (schema/patch_ir.schema.json)");
@@ -60,5 +60,15 @@ function loadSpecSummary(p) {
     const constraints = (obj.constraints || []).join("; ");
     const acceptance = (obj.acceptance || []).join("; ");
     return `intent=${intent}; targets=${targets}; constraints=${constraints}; acceptance=${acceptance}`;
+  } catch { return ""; }
+}
+
+function getPrimaryTargetPath(p) {
+  if (!p) return "";
+  try {
+    const obj = JSON.parse(fs.readFileSync(p, "utf8"));
+    const firstTarget = Array.isArray(obj.targets) ? obj.targets[0] : null;
+    const pathStr = firstTarget && typeof firstTarget.path === "string" ? firstTarget.path : "";
+    return pathStr || "";
   } catch { return ""; }
 }
