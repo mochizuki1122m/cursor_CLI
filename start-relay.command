@@ -10,6 +10,12 @@ UI_PORT=${UI_PORT:-34100}
 if [ -z "${DISABLE_LOCAL_UI:-}" ]; then
   (node scripts/ui_server.mjs >/dev/null 2>&1 &) || true
   echo "Local UI: http://localhost:${UI_PORT}" | tee -a "$log_file"
+  # 既定ブラウザで自動表示（best-effort）
+  if command -v open >/dev/null 2>&1; then
+    (open "http://localhost:${UI_PORT}" >/dev/null 2>&1 &) || true
+  elif command -v xdg-open >/dev/null 2>&1; then
+    (xdg-open "http://localhost:${UI_PORT}" >/dev/null 2>&1 &) || true
+  fi
 fi
 
 if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi

@@ -21,6 +21,10 @@ if (-not $env:DISABLE_LOCAL_UI -or $env:DISABLE_LOCAL_UI -eq '') {
   try {
     Start-Process -WindowStyle Hidden -FilePath node -ArgumentList "scripts/ui_server.mjs" | Out-Null
     Write-Host "Local UI: http://localhost:$port"
+    # 既定ブラウザで自動表示（best-effort）
+    try {
+      Start-Process "http://localhost:$port" | Out-Null
+    } catch {}
   } catch {}
 }
 
