@@ -23,6 +23,14 @@ print_error_context() {
 # エラー／非ゼロ終了時にログを出す
 trap 'st=$?; if [[ $st -ne 0 ]]; then print_error_context; fi' EXIT
 
+# .env を取り込み（存在する場合）
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 ROUNDS=3
 REQUIRE_GO=false
 STOP_ON_CLEAN=false
