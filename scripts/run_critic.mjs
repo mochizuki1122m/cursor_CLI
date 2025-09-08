@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs from "fs";
+// import fs from "fs";
 import { callChatJson, buildSystemPromptJsonOnly } from "./lib/llm_client.mjs";
 
 const stdin = await new Promise((resolve) => {

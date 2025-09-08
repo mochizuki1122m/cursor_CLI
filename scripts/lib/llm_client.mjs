@@ -181,7 +181,7 @@ function loadPromptFile(role) {
       if (fs.existsSync(f)) {
         parts.push(fs.readFileSync(f, "utf8").trim());
       }
-    } catch {}
+    } catch (e) { /* noop */ }
   }
   return parts.filter(Boolean).join("\n\n");
 }

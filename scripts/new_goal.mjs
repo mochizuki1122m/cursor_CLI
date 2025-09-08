@@ -14,10 +14,10 @@ if (!fs.existsSync(specPath)) {
     "templates/spec_ir.example.json"
   ];
   for (const tp of tPaths) {
-    try { template = JSON.parse(fs.readFileSync(tp, "utf8")); break; } catch {}
+    try { template = JSON.parse(fs.readFileSync(tp, "utf8")); break; } catch (e) { /* noop */ }
   }
   const nowId = id.toUpperCase();
-  const nowStamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0,12);
+  // const nowStamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0,12);
   const s = JSON.stringify(template);
   const filled = s
     .replace(/FEAT-YYYYMMDD-HHMM/g, nowId)

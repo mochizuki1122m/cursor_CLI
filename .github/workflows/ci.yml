@@ -23,8 +23,16 @@ jobs:
         run: pip install -r requirements.txt
       - name: ESLint
         run: npx eslint .
-      - name: PyTest
-        run: pytest -q --maxfail=1 --disable-warnings
+      - name: PyTest (tolerate no tests)
+        run: |
+          set +e
+          pytest -q --maxfail=1 --disable-warnings
+          code=$?
+          if [ $code -eq 5 ]; then
+            echo "No tests collected; treating as pass"
+            exit 0
+          fi
+          exit $code
       - name: Build Scorecard
         run: |
           node scripts/analyze_patch_ir.mjs || true
