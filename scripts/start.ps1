@@ -98,13 +98,8 @@ if ($env:LLM_PROVIDER -eq 'cursor' -and (-not $env:CURSOR_API_KEY -or $env:CURSO
 
 Write-Host "Launching relay..."
 try {
-  # GOゲート自動判定
-  $RequireFlag = @()
-  if (Test-Path dialogue/GO.txt) {
-    $go = (Get-Content dialogue/GO.txt -Raw).Trim()
-    if ($go -eq 'GO') { $RequireFlag = @('-RequireGo') }
-  }
-  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay.ps1 -Rounds $Rounds @($RequireFlag) @($StopOnClean ? "-StopOnClean" : $null)
+  # UI入力完了（GOセット）まで待機する仕様: 常に RequireGo を有効
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay.ps1 -Rounds $Rounds -RequireGo @($StopOnClean ? "-StopOnClean" : $null)
 } catch {
   Write-Host "[start.ps1] エラー発生。relayログの一部を表示します" -ForegroundColor Red
   if (Test-Path review/reports/verify_ir.json) {

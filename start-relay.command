@@ -80,14 +80,6 @@ if [ "${LLM_PROVIDER:-}" = "cursor" ] && [ "${CURSOR_API_KEY:-}" = "" ]; then
   fi
 fi
 
-# GOゲート: GOが設定されているときのみ --require-go を付与
-REQUIRE_GO_FLAG=""
-if [ -f dialogue/GO.txt ]; then
-  GO_VAL=$(tr -d $'\r\n' < dialogue/GO.txt)
-  if [ "$GO_VAL" = "GO" ]; then
-    REQUIRE_GO_FLAG="--require-go"
-  fi
-fi
 
 if [ ! -d node_modules ]; then npm install; fi
 if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
@@ -96,7 +88,7 @@ mkdir -p patches review/reports audit dialogue
 if [ ! -f dialogue/GO.txt ]; then echo HOLD > dialogue/GO.txt; fi
 
 {
-  bash scripts/relay.sh --rounds 3 $REQUIRE_GO_FLAG --stop-on-clean
+  bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean
 } 2> >(tee -a "$log_file" >&2)
 
 echo "OK"
