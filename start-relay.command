@@ -31,6 +31,20 @@ if [ "${LLM_PROVIDER:-}" = "cursor" ] && [ "${CURSOR_API_KEY:-}" = "" ]; then
   done
   # 再読み込み（CLIが環境変数を設定する場合に備え）
   if [ -f .env ]; then set -a; . ./.env; set +a; fi
+  # 自動取得（有効時）または手動入力
+  if [ "${AUTO_FETCH_CURSOR_KEY:-false}" = "true" ]; then
+    mkdir -p .cache || true
+    fetch_cmd=${CURSOR_KEY_FETCH_CMD:-"cursor auth token"}
+    if eval "$fetch_cmd" > .cache/cursor_key.txt 2>>"$log_file"; then
+      CURSOR_API_KEY=$(cat .cache/cursor_key.txt | tr -d '\r\n')
+      if [ -n "$CURSOR_API_KEY" ]; then
+        printf "\nCURSOR_API_KEY=%s\n" "$CURSOR_API_KEY" >> .env
+        date +%s > .cache/cursor_key_fetched_at
+        printf "provider=cursor\ncmd=%s\n" "$fetch_cmd" > .cache/cursor_key_meta.env
+        export CURSOR_API_KEY
+      fi
+    fi
+  fi
   if [ "${CURSOR_API_KEY:-}" = "" ]; then
     echo "CURSOR_API_KEY を入力してください（貼り付け、Enterで確定）:" >&2
     read -r CURSOR_API_KEY
