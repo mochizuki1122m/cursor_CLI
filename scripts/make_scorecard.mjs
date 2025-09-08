@@ -8,7 +8,7 @@ const v = JSON.parse(fs.readFileSync(vPath, "utf8"));
 let analysis = { diff_loc: null, changed_files: null };
 try {
   analysis = JSON.parse(fs.readFileSync("review/reports/analysis.json", "utf8"));
-} catch {}
+} catch (e) { /* noop */ }
 
 const env = (k, d) => (process.env[k] ?? d);
 const MAX_DIFF_LOC = Number(env("MAX_DIFF_LOC", "400"));

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relay Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>AI Relay Dashboard</h1>
+    <div id="status">Connecting...</div>
+  </header>
+  <main>
+    <section>
+      <h2>Human Spec (Markdown)</h2>
+      <div style="margin-bottom:6px;">
+        <button id="loadMdTemplate">Load Markdown Template</button>
+        <label style="margin-left:8px;"><input type="checkbox" id="autoStart" checked /> Auto start (set GO)</label>
+      </div>
+      <textarea id="specMd" rows="20" style="width:100%; font-family: ui-monospace, monospace;"></textarea>
+      <div style="margin-top:6px;">
+        <button id="submitSpecMd">Submit Spec</button>
+      </div>
+      <div id="goalMsg"></div>
+    </section>
+    <section>
+      <h2>GO Gate</h2>
+      <div id="goGate">-</div>
+    </section>
+    <section>
+      <h2>PatchIR</h2>
+      <pre id="patchIr"></pre>
+    </section>
+    <section>
+      <h2>VerifyIR</h2>
+      <pre id="verifyIr"></pre>
+    </section>
+    <section>
+      <h2>Scorecard</h2>
+      <pre id="scorecard"></pre>
+    </section>
+    <section>
+      <h2>Understanding</h2>
+      <pre id="understanding"></pre>
+      <div>
+        <textarea id="understandingFeedback" rows="3" placeholder="確認コメント（任意）" style="width:100%"></textarea>
+        <div style="margin-top:6px;">
+          <button id="btnConfirm">これで間違いありません（GO）</button>
+          <button id="btnReject">差し戻す（不足情報を追記します）</button>
+        </div>
+        <div id="understandingMsg"></div>
+      </div>
+    </section>
+    <section>
+      <h2>Events</h2>
+      <ul id="events"></ul>
+    </section>
+  </main>
+  <script src="/main.js"></script>
+  </body>
+  </html>
+

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schema/understanding_ir.schema.json",
+  "title": "UnderstandingIR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "summary", "questions", "assumptions", "decision"],
+  "properties": {
+    "task_id": { "type": "string" },
+    "summary": { "type": "string" },
+    "questions": { "type": "array", "items": { "type": "string" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "suggested_targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string" }
+        }
+      },
+      "default": []
+    },
+    "suggested_acceptance": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "next_actions": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approve"],
+      "properties": {
+        "approve": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

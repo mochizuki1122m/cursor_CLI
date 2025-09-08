@@ -15,5 +15,106 @@ if (-not (Test-Path requirements.txt)) {
 New-Item -ItemType Directory -Force -Path patches,review/reports,audit,dialogue | Out-Null
 if (-not (Test-Path dialogue/GO.txt)) { "HOLD" | Out-File -FilePath dialogue/GO.txt -Encoding utf8 }
 
+# UI server（ベストエフォート起動）
+if (-not $env:DISABLE_LOCAL_UI -or $env:DISABLE_LOCAL_UI -eq '') {
+  $port = ($env:UI_PORT) ? $env:UI_PORT : 34100
+  try {
+    Start-Process -WindowStyle Hidden -FilePath node -ArgumentList "scripts/ui_server.mjs" | Out-Null
+    Write-Host "Local UI: http://localhost:$port"
+    # 既定ブラウザで自動表示（best-effort）
+    try {
+      Start-Process "http://localhost:$port" | Out-Null
+    } catch {}
+  } catch {}
+}
+
+# 環境読み込み
+if (Test-Path .env) {
+  Get-Content .env | ForEach-Object {
+    if ($_ -match '^(\s*#|\s*$)') { return }
+    $k,$v = $_.Split('=',2)
+    if ($k -and $v) { [System.Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim()) }
+  }
+}
+
+# 既定: LLM_PROVIDER=cursor
+if (-not $env:LLM_PROVIDER -or $env:LLM_PROVIDER -eq '') {
+  Add-Content -Path .env -Value "LLM_PROVIDER=cursor"
+  $env:LLM_PROVIDER = 'cursor'
+}
+
+# Cursor CLI ログイン試行（未ログイン/キー未設定時）
+if ($env:LLM_PROVIDER -eq 'cursor' -and (-not $env:CURSOR_API_KEY -or $env:CURSOR_API_KEY -eq '')) {
+  $candidates = @('cursor','cursor-cli','cursor-agent')
+  foreach ($c in $candidates) {
+    $path = (Get-Command $c -ErrorAction SilentlyContinue)
+    if ($path) {
+      Write-Host "Cursor CLI ($c) にログインを試行します（キャンセル可）" -ForegroundColor Yellow
+      try { & $c login } catch { }
+      break
+    }
+  }
+  # 再読込
+  if (Test-Path .env) {
+    Get-Content .env | ForEach-Object {
+      if ($_ -match '^(\s*#|\s*$)') { return }
+      $k,$v = $_.Split('=',2)
+      if ($k -and $v) { [System.Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim()) }
+    }
+  }
+  # 自動取得（有効時）
+  $auto = $env:AUTO_FETCH_CURSOR_KEY
+  if ($auto -and $auto.ToLower() -eq 'true') {
+    if (-not (Test-Path .cache)) { New-Item -ItemType Directory -Force -Path .cache | Out-Null }
+    $cmd = $env:CURSOR_KEY_FETCH_CMD
+    if (-not $cmd -or $cmd -eq '') { $cmd = 'cursor auth token' }
+    try {
+      $now = [int][double]::Parse((Get-Date -UFormat %s))
+      $tsFile = '.cache/cursor_key_fetched_at'
+      $last = 0
+      if (Test-Path $tsFile) { $last = [int](Get-Content $tsFile -Raw) }
+      $hours = if ($env:CURSOR_KEY_FETCH_INTERVAL_HOURS) { [int]$env:CURSOR_KEY_FETCH_INTERVAL_HOURS } else { 24 }
+      $interval = $hours * 3600
+      $shouldFetch = $true
+      if ($env:CURSOR_API_KEY -and $env:CURSOR_API_KEY -ne '' -and ($now - $last) -lt $interval) { $shouldFetch = $false }
+      if ($shouldFetch) {
+        $token = & powershell -NoProfile -Command $cmd 2>$null
+        if ($token -and $token.Trim() -ne '') {
+          Set-Content -Path .cache/cursor_key.txt -Value ($token.Trim())
+          Add-Content -Path .env -Value ("CURSOR_API_KEY=" + ($token.Trim()))
+          [System.Environment]::SetEnvironmentVariable('CURSOR_API_KEY', $token.Trim())
+          (Get-Date -UFormat %s) | Set-Content -Path $tsFile
+          Set-Content -Path .cache/cursor_key_meta.env -Value ("provider=cursor`ncmd=" + $cmd)
+        }
+      }
+    } catch {}
+  }
+  if (-not $env:CURSOR_API_KEY -or $env:CURSOR_API_KEY -eq '') {
+    $key = Read-Host -Prompt 'CURSOR_API_KEY を入力してください'
+    Add-Content -Path .env -Value "CURSOR_API_KEY=$key"
+    $env:CURSOR_API_KEY = $key
+  }
+}
+
 Write-Host "Launching relay..."
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay.ps1 -Rounds $Rounds @($RequireGo ? "-RequireGo" : $null) @($StopOnClean ? "-StopOnClean" : $null)
+try {
+  # UI入力完了（GOセット）まで待機する仕様: 常に RequireGo を有効
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay.ps1 -Rounds $Rounds -RequireGo @($StopOnClean ? "-StopOnClean" : $null)
+} catch {
+  Write-Host "[start.ps1] エラー発生。relayログの一部を表示します" -ForegroundColor Red
+  if (Test-Path review/reports/verify_ir.json) {
+    Write-Host "== review/reports/verify_ir.json =="
+    Get-Content review/reports/verify_ir.json -First 200 | Out-Host
+  }
+  if (Test-Path patches/patch_ir.json) {
+    Write-Host "== patches/patch_ir.json =="
+    Get-Content patches/patch_ir.json -First 200 | Out-Host
+  }
+  if (Test-Path logs) {
+    Get-ChildItem logs -File | ForEach-Object {
+      Write-Host "== $($_.FullName) =="
+      Get-Content $_.FullName -Tail 200 | Out-Host
+    }
+  }
+  throw
+}

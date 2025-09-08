@@ -1,6 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+print_error_context() {
+  echo "[relay.sh] エラー発生。関連ログを表示します" >&2
+  if [[ -f review/reports/verify_ir.json ]]; then
+    echo "== review/reports/verify_ir.json ==" >&2
+    sed -n '1,200p' review/reports/verify_ir.json >&2 || true
+  fi
+  if [[ -f patches/patch_ir.json ]]; then
+    echo "== patches/patch_ir.json ==" >&2
+    sed -n '1,200p' patches/patch_ir.json >&2 || true
+  fi
+  if compgen -G "logs/*" > /dev/null; then
+    for f in logs/*; do
+      [ -f "$f" ] || continue
+      echo "== $f ==" >&2
+      tail -n 200 "$f" >&2 || true
+    done
+  fi
+}
+
+# エラー／非ゼロ終了時にログを出す
+trap 'st=$?; if [[ $st -ne 0 ]]; then print_error_context; fi' EXIT
+
+# .env を取り込み（存在する場合）
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
+# UI server を可能なら自動起動（Linux/CIでも邪魔にならないようバックグラウンド）
+if [[ -z "${DISABLE_LOCAL_UI:-}" ]]; then
+  UI_PORT=${UI_PORT:-34100}
+  (node scripts/ui_server.mjs >/dev/null 2>&1 &) || true
+  echo "Local UI: http://localhost:${UI_PORT}" >&2
+  if command -v xdg-open >/dev/null 2>&1; then
+    (xdg-open "http://localhost:${UI_PORT}" >/dev/null 2>&1 &) || true
+  elif command -v gio >/dev/null 2>&1; then
+    (gio open "http://localhost:${UI_PORT}" >/dev/null 2>&1 &) || true
+  fi
+fi
+
 ROUNDS=3
 REQUIRE_GO=false
 STOP_ON_CLEAN=false

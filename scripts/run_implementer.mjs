@@ -45,7 +45,7 @@ function findLatestSpecPath() {
       const p = pathJoin(base, e.name, "spec_ir.json");
       if (fs.existsSync(p)) return p;
     }
-  } catch {}
+  } catch (e) { /* noop */ }
   return "";
 }
 
@@ -60,7 +60,7 @@ function loadSpecSummary(p) {
     const constraints = (obj.constraints || []).join("; ");
     const acceptance = (obj.acceptance || []).join("; ");
     return `intent=${intent}; targets=${targets}; constraints=${constraints}; acceptance=${acceptance}`;
-  } catch { return ""; }
+  } catch (e) { return ""; }
 }
 
 function getPrimaryTargetPath(p) {
@@ -70,5 +70,5 @@ function getPrimaryTargetPath(p) {
     const firstTarget = Array.isArray(obj.targets) ? obj.targets[0] : null;
     const pathStr = firstTarget && typeof firstTarget.path === "string" ? firstTarget.path : "";
     return pathStr || "";
-  } catch { return ""; }
+  } catch (e) { return ""; }
 }

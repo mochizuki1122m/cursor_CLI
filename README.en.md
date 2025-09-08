@@ -159,6 +159,55 @@ MAX_ROUNDS=6 / MAX_DIFF_LOC=400 / MAX_CHANGED_FILES=10 / MAX_API_TOKENS_PER_ROUN
 4) Audit (append to JSONL chain, PII anonymized)
 5) If clean: diff analysis → patch apply (3-way) → scorecard
 
+## Local UI Dashboard (Offline)
+- Runs on localhost (127.0.0.1) and works offline.
+- It auto-opens the browser on launch (`http://localhost:34100`). Disable via `DISABLE_LOCAL_UI=1`.
+- Features:
+  - Human Spec (Markdown) input (load template → edit → submit)
+  - Understanding panel (summary/assumptions/questions/decision) with human confirm/reject
+  - Live monitoring of PatchIR / VerifyIR / Scorecard / GO via SSE
+
+### Human input is Markdown only
+- Click `Load Markdown Template`, write naturally, then `Submit Spec`.
+- Listing Targets is unnecessary; proposed targets are surfaced during the understanding phase.
+
+## Understanding Phase (human confirmation → then implementation)
+1) Implementer derives an UnderstandingIR(JSON) from the Markdown (summary/assumptions/questions/risks).
+2) Critic reviews and adds questions if needed, and proposes approve=true/false.
+3) In the UI, a human verifies the natural-language summary:
+   - If correct: click “Confirm (GO)” → GO is set → proceed to implementation.
+   - If not: click “Reject”, leave feedback, update Markdown and resubmit.
+
+## Added Key Files / Endpoints
+- Scripts/Schemas
+  - `scripts/ui_server.mjs` (UI server/SSE)
+  - `scripts/run_understanding.mjs` / `scripts/review_understanding.mjs`
+  - `schema/understanding_ir.schema.json`
+  - `templates/spec_md.template.md`
+  - `ui/index.html` / `ui/main.js` / `ui/styles.css`
+- APIs
+  - `GET /api/spec-md-template`: human-friendly Markdown template
+  - `POST /api/spec-md`: accept Markdown, normalize to SpecIR, run understanding
+  - `POST /api/understanding/confirm|reject`: human confirm/reject (GO/HOLD)
+  - `GET /events`: SSE (PatchIR/VerifyIR/Scorecard/Understanding/GO)
+
+## Environment (Additions)
+```
+# UI
+UI_PORT=34100
+DISABLE_LOCAL_UI=
+
+# Key auto-fetch (optional)
+AUTO_FETCH_CURSOR_KEY=false
+CURSOR_KEY_FETCH_CMD="cursor auth token"
+CURSOR_KEY_FETCH_INTERVAL_HOURS=24
+```
+
+## Troubleshooting (UI/Launch)
+- UI not opening: open `http://localhost:34100` directly; check `DISABLE_LOCAL_UI`.
+- UI server logs: `.cache/ui_server.log` (when manually launched)
+- On failures, relay scripts print recent `verify_ir.json` / `patch_ir.json` / `logs/*` for context.
+
 ## Artifacts (Where to Look)
 - `patches/patch_ir.json` — Implementer’s PatchIR
 - `review/reports/verify_ir.json` — Critic’s VerifyIR
