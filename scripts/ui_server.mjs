@@ -3,6 +3,7 @@ import express from "express";
 import chokidar from "chokidar";
 import fs from "fs";
 import path from "path";
+import { spawn } from "child_process";
 
 const app = express();
 const port = Number(process.env.UI_PORT || 34100);
@@ -14,6 +15,9 @@ function safeJsonRead(p, fallback = null) {
 
 // Static files
 app.use(express.static(publicDir));
+
+// JSON body
+app.use(express.json({ limit: "1mb" }));
 
 // SSE endpoint for events
 app.get("/events", (req, res) => {
@@ -57,6 +61,75 @@ app.get("/events", (req, res) => {
   watcher.on("unlink", (p) => send("file_unlink", { path: p }));
 
   req.on("close", () => watcher.close().catch(() => {}));
+});
+
+function readTemplateSpec() {
+  const tPaths = [
+    path.join("templates", "spec_ir.template.json"),
+    path.join("templates", "spec_ir.example.json"),
+  ];
+  for (const p of tPaths) {
+    try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
+  }
+  return {
+    task_id: "FEAT-YYYYMMDD-HHMM",
+    intent: "feature",
+    constraints: [],
+    targets: [{ path: "README.md", region: { from: 1, to: 200 } }],
+    acceptance: ["tests pass"],
+  };
+}
+
+// Return template spec with a suggested id
+app.get("/api/spec-template", (req, res) => {
+  const t = readTemplateSpec();
+  const id = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 12);
+  const suggested = JSON.parse(JSON.stringify(t));
+  suggested.task_id = (t.task_id || "FEAT-") + id;
+  res.json(suggested);
+});
+
+function ensureDir(d) { fs.mkdirSync(d, { recursive: true }); }
+
+function spawnRelay() {
+  const auto = String(process.env.UI_AUTOSTART_RELAY ?? "true").toLowerCase() === "true";
+  if (!auto) return;
+  const rounds = process.env.UI_ROUNDS || "3";
+  if (process.platform === "win32") {
+    spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/relay.ps1", "-Rounds", rounds, "-RequireGo", "-StopOnClean"], { stdio: "ignore", detached: true }).unref();
+  } else {
+    spawn("bash", ["scripts/relay.sh", "--rounds", rounds, "--require-go", "--stop-on-clean"], { stdio: "ignore", detached: true }).unref();
+  }
+}
+
+// Create goal and optionally start relay by opening GO gate
+app.post("/api/goals", (req, res) => {
+  try {
+    const body = req.body || {};
+    const task_id = String(body.task_id || "").trim();
+    if (!task_id) return res.status(400).json({ error: "task_id required" });
+    const dir = path.join("tickets", task_id);
+    ensureDir(dir);
+    const intent = ["feature", "bugfix", "refactor"].includes(body.intent) ? body.intent : "feature";
+    const normalizeList = (v) => Array.isArray(v) ? v : (String(v || "").split(/\r?\n/).map(s=>s.trim()).filter(Boolean));
+    const constraints = normalizeList(body.constraints);
+    const acceptance = normalizeList(body.acceptance);
+    const targets = Array.isArray(body.targets) && body.targets.length > 0 ? body.targets.map(t => ({
+      path: String(t.path || "README.md"),
+      region: t.region && Number(t.region.from) && Number(t.region.to) ? { from: Number(t.region.from), to: Number(t.region.to) } : undefined,
+    })) : [{ path: "README.md", region: { from: 1, to: 200 } }];
+    const spec = { task_id, intent, constraints, targets, acceptance };
+    fs.writeFileSync(path.join(dir, "spec_ir.json"), JSON.stringify(spec, null, 2));
+    ensureDir("dialogue");
+    const autoStart = body.autoStart !== false;
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), autoStart ? "GO\n" : "HOLD\n");
+    // Notify clients
+    // Fire-and-forget spawn
+    if (autoStart) spawnRelay();
+    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), started: autoStart });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
 });
 
 app.listen(port, "127.0.0.1", () => {
