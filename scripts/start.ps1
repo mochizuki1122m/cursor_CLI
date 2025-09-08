@@ -69,13 +69,23 @@ if ($env:LLM_PROVIDER -eq 'cursor' -and (-not $env:CURSOR_API_KEY -or $env:CURSO
     $cmd = $env:CURSOR_KEY_FETCH_CMD
     if (-not $cmd -or $cmd -eq '') { $cmd = 'cursor auth token' }
     try {
-      $token = & powershell -NoProfile -Command $cmd 2>$null
-      if ($token -and $token.Trim() -ne '') {
-        Set-Content -Path .cache/cursor_key.txt -Value ($token.Trim())
-        Add-Content -Path .env -Value ("CURSOR_API_KEY=" + ($token.Trim()))
-        [System.Environment]::SetEnvironmentVariable('CURSOR_API_KEY', $token.Trim())
-        (Get-Date -UFormat %s) | Set-Content -Path .cache/cursor_key_fetched_at
-        Set-Content -Path .cache/cursor_key_meta.env -Value ("provider=cursor`ncmd=" + $cmd)
+      $now = [int][double]::Parse((Get-Date -UFormat %s))
+      $tsFile = '.cache/cursor_key_fetched_at'
+      $last = 0
+      if (Test-Path $tsFile) { $last = [int](Get-Content $tsFile -Raw) }
+      $hours = if ($env:CURSOR_KEY_FETCH_INTERVAL_HOURS) { [int]$env:CURSOR_KEY_FETCH_INTERVAL_HOURS } else { 24 }
+      $interval = $hours * 3600
+      $shouldFetch = $true
+      if ($env:CURSOR_API_KEY -and $env:CURSOR_API_KEY -ne '' -and ($now - $last) -lt $interval) { $shouldFetch = $false }
+      if ($shouldFetch) {
+        $token = & powershell -NoProfile -Command $cmd 2>$null
+        if ($token -and $token.Trim() -ne '') {
+          Set-Content -Path .cache/cursor_key.txt -Value ($token.Trim())
+          Add-Content -Path .env -Value ("CURSOR_API_KEY=" + ($token.Trim()))
+          [System.Environment]::SetEnvironmentVariable('CURSOR_API_KEY', $token.Trim())
+          (Get-Date -UFormat %s) | Set-Content -Path $tsFile
+          Set-Content -Path .cache/cursor_key_meta.env -Value ("provider=cursor`ncmd=" + $cmd)
+        }
       }
     } catch {}
   }

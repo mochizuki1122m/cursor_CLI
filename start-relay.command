@@ -48,13 +48,26 @@ if [ "${LLM_PROVIDER:-}" = "cursor" ] && [ "${CURSOR_API_KEY:-}" = "" ]; then
   if [ "${AUTO_FETCH_CURSOR_KEY:-false}" = "true" ]; then
     mkdir -p .cache || true
     fetch_cmd=${CURSOR_KEY_FETCH_CMD:-"cursor auth token"}
-    if eval "$fetch_cmd" > .cache/cursor_key.txt 2>>"$log_file"; then
-      CURSOR_API_KEY=$(cat .cache/cursor_key.txt | tr -d '\r\n')
-      if [ -n "$CURSOR_API_KEY" ]; then
-        printf "\nCURSOR_API_KEY=%s\n" "$CURSOR_API_KEY" >> .env
-        date +%s > .cache/cursor_key_fetched_at
-        printf "provider=cursor\ncmd=%s\n" "$fetch_cmd" > .cache/cursor_key_meta.env
-        export CURSOR_API_KEY
+    now_ts=$(date +%s)
+    last_ts_file=.cache/cursor_key_fetched_at
+    last_ts=0
+    [ -f "$last_ts_file" ] && last_ts=$(cat "$last_ts_file" 2>/dev/null || echo 0)
+    interval_hours=${CURSOR_KEY_FETCH_INTERVAL_HOURS:-24}
+    interval_sec=$((interval_hours * 3600))
+    should_fetch=true
+    if [ -n "${CURSOR_API_KEY:-}" ] && [ $((now_ts - last_ts)) -lt $interval_sec ]; then
+      should_fetch=false
+      echo "key fetch skipped (within interval)" >> "$log_file"
+    fi
+    if $should_fetch; then
+      if eval "$fetch_cmd" > .cache/cursor_key.txt 2>>"$log_file"; then
+        CURSOR_API_KEY=$(cat .cache/cursor_key.txt | tr -d '\r\n')
+        if [ -n "$CURSOR_API_KEY" ]; then
+          printf "\nCURSOR_API_KEY=%s\n" "$CURSOR_API_KEY" >> .env
+          date +%s > "$last_ts_file"
+          printf "provider=cursor\ncmd=%s\n" "$fetch_cmd" > .cache/cursor_key_meta.env
+          export CURSOR_API_KEY
+        fi
       fi
     fi
   fi
