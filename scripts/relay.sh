@@ -31,6 +31,18 @@ if [[ -f .env ]]; then
   set +a
 fi
 
+# UI server を可能なら自動起動（Linux/CIでも邪魔にならないようバックグラウンド）
+if [[ -z "${DISABLE_LOCAL_UI:-}" ]]; then
+  UI_PORT=${UI_PORT:-34100}
+  (node scripts/ui_server.mjs >/dev/null 2>&1 &) || true
+  echo "Local UI: http://localhost:${UI_PORT}" >&2
+  if command -v xdg-open >/dev/null 2>&1; then
+    (xdg-open "http://localhost:${UI_PORT}" >/dev/null 2>&1 &) || true
+  elif command -v gio >/dev/null 2>&1; then
+    (gio open "http://localhost:${UI_PORT}" >/dev/null 2>&1 &) || true
+  fi
+fi
+
 ROUNDS=3
 REQUIRE_GO=false
 STOP_ON_CLEAN=false
