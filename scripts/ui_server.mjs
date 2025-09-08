@@ -4,6 +4,8 @@ import chokidar from "chokidar";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
+import Ajv from "ajv";
+import addFormats from "ajv-formats";
 
 const app = express();
 const port = Number(process.env.UI_PORT || 34100);
@@ -89,6 +91,11 @@ app.get("/api/spec-template", (req, res) => {
   res.json(suggested);
 });
 
+// Return raw template without timestamp (for human editing exactly as template)
+app.get("/api/spec-template-raw", (req, res) => {
+  res.json(readTemplateSpec());
+});
+
 function ensureDir(d) { fs.mkdirSync(d, { recursive: true }); }
 
 function spawnRelay() {
@@ -125,6 +132,37 @@ app.post("/api/goals", (req, res) => {
     fs.writeFileSync(path.join("dialogue", "GO.txt"), autoStart ? "GO\n" : "HOLD\n");
     // Notify clients
     // Fire-and-forget spawn
+    if (autoStart) spawnRelay();
+    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), started: autoStart });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Accept full SpecIR JSON, validate, save ticket, set GO optionally
+const ajv = new Ajv({ allErrors: true, strict: false });
+addFormats(ajv);
+let specSchema = null;
+try {
+  specSchema = JSON.parse(fs.readFileSync(path.join("schema", "spec_ir.schema.json"), "utf8"));
+} catch {}
+const validateSpec = specSchema ? ajv.compile(specSchema) : null;
+
+app.post("/api/spec", (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== "object") return res.status(400).json({ error: "JSON body required" });
+    if (!validateSpec) return res.status(500).json({ error: "Spec schema not available" });
+    const ok = validateSpec(body);
+    if (!ok) return res.status(400).json({ error: "schema_invalid", details: validateSpec.errors });
+    const task_id = String(body.task_id || "").trim();
+    if (!task_id) return res.status(400).json({ error: "task_id required" });
+    const dir = path.join("tickets", task_id);
+    ensureDir(dir);
+    fs.writeFileSync(path.join(dir, "spec_ir.json"), JSON.stringify(body, null, 2));
+    ensureDir("dialogue");
+    const autoStart = String(req.query.autoStart ?? "true").toLowerCase() !== "false";
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), autoStart ? "GO\n" : "HOLD\n");
     if (autoStart) spawnRelay();
     res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), started: autoStart });
   } catch (e) {

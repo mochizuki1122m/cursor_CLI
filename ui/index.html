@@ -13,40 +13,15 @@
   </header>
   <main>
     <section>
-      <h2>New Goal</h2>
-      <form id="goalForm">
-        <div>
-          <label>Task ID</label>
-          <input id="task_id" required />
-          <button type="button" id="fillTemplate">Fill from template</button>
-        </div>
-        <div>
-          <label>Intent</label>
-          <select id="intent">
-            <option value="feature">feature</option>
-            <option value="bugfix">bugfix</option>
-            <option value="refactor">refactor</option>
-          </select>
-        </div>
-        <div>
-          <label>Constraints (one per line)</label>
-          <textarea id="constraints" rows="3"></textarea>
-        </div>
-        <div>
-          <label>Acceptance (one per line)</label>
-          <textarea id="acceptance" rows="3"></textarea>
-        </div>
-        <div>
-          <label>Targets (comma-separated paths)</label>
-          <input id="targets" placeholder="README.md, scripts/run_implementer.mjs" />
-        </div>
-        <div>
-          <label><input type="checkbox" id="autoStart" checked /> Auto start (set GO)</label>
-        </div>
-        <div>
-          <button type="submit">Create Goal</button>
-        </div>
-      </form>
+      <h2>SpecIR (single input)</h2>
+      <div style="margin-bottom:6px;">
+        <button id="loadTemplate">Load Template</button>
+        <label style="margin-left:8px;"><input type="checkbox" id="autoStart" checked /> Auto start (set GO)</label>
+      </div>
+      <textarea id="specJson" rows="16" style="width:100%; font-family: ui-monospace, monospace;"></textarea>
+      <div style="margin-top:6px;">
+        <button id="submitSpec">Submit Spec</button>
+      </div>
       <div id="goalMsg"></div>
     </section>
     <section>
