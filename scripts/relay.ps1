@@ -17,5 +17,11 @@ for ($i=1; $i -le $Rounds; $i++) {
   node scripts/audit_append.mjs review/reports/verify_ir.json
 
   $v = ConvertFrom-Json (Get-Content review/reports/verify_ir.json -Raw)
-  if ($v.build.ok -and $v.tests.ok -and $v.static.ok -and $StopOnClean) { break }
+  $clean = ($v.build.ok -and $v.tests.ok -and $v.static.ok)
+  if ($clean) {
+    node scripts/analyze_patch_ir.mjs | Out-Null
+    node scripts/apply_patch_ir.mjs | Out-Null
+    node scripts/make_scorecard.mjs | Out-Null
+    if ($StopOnClean) { break }
+  }
 }
