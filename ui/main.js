@@ -23,6 +23,7 @@ ev.addEventListener("snapshot", (e) => {
   setJson("patchIr", d.patch);
   setJson("verifyIr", d.verify);
   setJson("scorecard", d.score);
+  setJson("understanding", d.understanding);
 });
 
 ev.addEventListener("file_add", (e) => {
@@ -42,6 +43,7 @@ ev.addEventListener("file_change", (e) => {
   if (d.path.endsWith("verify_ir.json")) setJson("verifyIr", d.content);
   if (d.path.endsWith("scorecard.json")) setJson("scorecard", d.content);
   if (d.path.endsWith("GO.txt")) setGo(d.content);
+  if (d.path.endsWith("understanding_ir.json")) setJson("understanding", d.content);
 });
 
 // Human spec (Markdown) flow

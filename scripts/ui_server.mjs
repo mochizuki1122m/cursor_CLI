@@ -3,7 +3,7 @@ import express from "express";
 import chokidar from "chokidar";
 import fs from "fs";
 import path from "path";
-import { spawn } from "child_process";
+import { spawn, spawnSync, execSync } from "child_process";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
@@ -39,6 +39,7 @@ app.get("/events", (req, res) => {
     patch: safeJsonRead("patches/patch_ir.json"),
     verify: safeJsonRead("review/reports/verify_ir.json"),
     score: safeJsonRead("review/reports/scorecard.json"),
+    understanding: safeJsonRead("review/reports/understanding_ir.json"),
   });
 
   const watcher = chokidar.watch([
@@ -57,6 +58,8 @@ app.get("/events", (req, res) => {
       payload = safeJsonRead(p);
     } else if (p.endsWith("GO.txt")) {
       try { payload = fs.readFileSync(p, "utf8").trim(); } catch {}
+    } else if (p.endsWith("understanding_ir.json")) {
+      payload = safeJsonRead(p);
     }
     send("file_change", { path: p, content: payload });
   });
@@ -213,11 +216,22 @@ app.post("/api/spec-md", (req, res) => {
     const dir = path.join("tickets", task_id);
     ensureDir(dir);
     fs.writeFileSync(path.join(dir, "spec_ir.json"), JSON.stringify(spec, null, 2));
+    // Understanding phase: generate and review
+    const uPath = path.join("review", "reports");
+    ensureDir(uPath);
+    const implRes = spawnSync("node", ["scripts/run_understanding.mjs", path.join(dir, "spec_ir.json"), task_id], { encoding: "utf8" });
+    const understandingImpl = JSON.parse(implRes.stdout || "{}" );
+    const reviewRes = spawnSync("node", ["scripts/review_understanding.mjs"], { input: JSON.stringify(understandingImpl), encoding: "utf8" });
+    const understanding = JSON.parse(reviewRes.stdout || JSON.stringify(understandingImpl));
+    fs.writeFileSync(path.join(uPath, "understanding_ir.json"), JSON.stringify(understanding, null, 2));
+    const approve = !!understanding?.decision?.approve;
+    // Set GO only when approved
     ensureDir("dialogue");
-    const autoStart = String(req.query.autoStart ?? "true").toLowerCase() !== "false";
-    fs.writeFileSync(path.join("dialogue", "GO.txt"), autoStart ? "GO\n" : "HOLD\n");
-    if (autoStart) spawnRelay();
-    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), started: autoStart, spec });
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), approve ? "GO\n" : "HOLD\n");
+    if (approve && String(req.query.autoStart ?? "true").toLowerCase() !== "false") {
+      spawnRelay();
+    }
+    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), understanding, approved: approve, started: approve });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
