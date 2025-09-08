@@ -25,10 +25,18 @@ trap 'st=$?; if [[ $st -ne 0 ]]; then print_error_context; fi' EXIT
 
 # .env を取り込み（存在する場合）
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
+  # 安全に .env を読み込む（コメント/空行を除外し、キー=値のみを export）
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+      # 先頭/末尾の空白を除去
+      val="${val#"${val%%[![:space:]]*}"}"
+      val="${val%"${val##*[![:space:]]}"}"
+      export "$key"="$val"
+    fi
+  done < .env
 fi
 
 # UI server を可能なら自動起動（Linux/CIでも邪魔にならないようバックグラウンド）
