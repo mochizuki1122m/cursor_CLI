@@ -96,6 +96,17 @@ app.get("/api/spec-template-raw", (req, res) => {
   res.json(readTemplateSpec());
 });
 
+// Human-friendly Markdown template
+app.get("/api/spec-md-template", (req, res) => {
+  try {
+    const p = path.join("templates", "spec_md.template.md");
+    const md = fs.readFileSync(p, "utf8");
+    res.type("text/markdown").send(md);
+  } catch (e) {
+    res.status(500).send("# Spec Template\n");
+  }
+});
+
 function ensureDir(d) { fs.mkdirSync(d, { recursive: true }); }
 
 function spawnRelay() {
@@ -165,6 +176,48 @@ app.post("/api/spec", (req, res) => {
     fs.writeFileSync(path.join("dialogue", "GO.txt"), autoStart ? "GO\n" : "HOLD\n");
     if (autoStart) spawnRelay();
     res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), started: autoStart });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Accept Markdown spec, parse to SpecIR and save
+app.post("/api/spec-md", (req, res) => {
+  try {
+    const md = String(req.body?.markdown || "");
+    if (!md.trim()) return res.status(400).json({ error: "markdown required" });
+    // Very simple parser mapping sections to SpecIR
+    const lines = md.split(/\r?\n/);
+    const getVal = (re) => {
+      const m = lines.find(l => re.test(l));
+      return m ? m.replace(re, "$1").trim() : "";
+    };
+    const task_id = getVal(/^Task ID:\s*(.+)$/i) || `FEAT-${Date.now()}`;
+    const type = (getVal(/^Type:\s*(.+)$/i) || "feature").toLowerCase();
+    const section = (name) => {
+      const idx = lines.findIndex(l => l.trim().toLowerCase() === `## ${name}`.toLowerCase());
+      if (idx < 0) return [];
+      const next = lines.findIndex((l, i) => i > idx && /^##\s+/.test(l));
+      const body = lines.slice(idx + 1, next < 0 ? undefined : next).map(s => s.trim()).filter(Boolean);
+      const bullets = body.filter(s => s.startsWith("-")).map(s => s.replace(/^[-*]\s*/, "").trim());
+      return bullets.length ? bullets : body;
+    };
+    const constraints = section("Constraints");
+    const acceptance = section("Acceptance Criteria");
+    const targets = section("Targets").map(p => ({ path: p }));
+    const intent = ["feature","bugfix","refactor"].includes(type) ? type : "feature";
+    const spec = { task_id, intent, constraints, targets, acceptance };
+    if (!validateSpec) return res.status(500).json({ error: "Spec schema not available" });
+    const ok = validateSpec(spec);
+    if (!ok) return res.status(400).json({ error: "schema_invalid", details: validateSpec.errors });
+    const dir = path.join("tickets", task_id);
+    ensureDir(dir);
+    fs.writeFileSync(path.join(dir, "spec_ir.json"), JSON.stringify(spec, null, 2));
+    ensureDir("dialogue");
+    const autoStart = String(req.query.autoStart ?? "true").toLowerCase() !== "false";
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), autoStart ? "GO\n" : "HOLD\n");
+    if (autoStart) spawnRelay();
+    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), started: autoStart, spec });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }

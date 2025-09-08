@@ -44,29 +44,24 @@ ev.addEventListener("file_change", (e) => {
   if (d.path.endsWith("GO.txt")) setGo(d.content);
 });
 
-// SpecIR single-input flow
-async function fetchTemplateRaw() {
-  const r = await fetch('/api/spec-template-raw');
-  return r.json();
-}
-
-document.getElementById('loadTemplate').addEventListener('click', async () => {
+// Human spec (Markdown) flow
+document.getElementById('loadMdTemplate').addEventListener('click', async () => {
   try {
-    const t = await fetchTemplateRaw();
-    document.getElementById('specJson').value = JSON.stringify(t, null, 2);
+    const r = await fetch('/api/spec-md-template');
+    const t = await r.text();
+    document.getElementById('specMd').value = t;
   } catch (e) { alert('Failed to load template'); }
 });
 
-document.getElementById('submitSpec').addEventListener('click', async () => {
+document.getElementById('submitSpecMd').addEventListener('click', async () => {
   const msg = document.getElementById('goalMsg');
   msg.textContent = 'Submitting...';
   try {
     const autoStart = document.getElementById('autoStart').checked;
-    const text = document.getElementById('specJson').value;
-    const spec = JSON.parse(text);
-    const r = await fetch(`/api/spec?autoStart=${autoStart ? 'true' : 'false'}`, {
+    const markdown = document.getElementById('specMd').value;
+    const r = await fetch(`/api/spec-md?autoStart=${autoStart ? 'true' : 'false'}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(spec)
+      body: JSON.stringify({ markdown })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
