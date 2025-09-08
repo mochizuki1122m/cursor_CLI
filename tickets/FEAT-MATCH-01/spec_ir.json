@@ -1,0 +1,13 @@
+{
+  "task_id": "FEAT-MATCH-01",
+  "intent": "feature",
+  "constraints": [
+    "CI: ESLint clean",
+    "CI: PyTest passes"
+  ],
+  "targets": [],
+  "acceptance": [
+    "ユーザー登録→プロフィール設定→検索→マッチ→チャットまで通しで成功",
+    "基本的な検索・マッチング・チャットのユニットテストが合格"
+  ]
+}
