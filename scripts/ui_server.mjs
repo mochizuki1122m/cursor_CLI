@@ -59,7 +59,7 @@ app.get("/events", (req, res) => {
   req.on("close", () => watcher.close().catch(() => {}));
 });
 
-app.listen(port, () => {
+app.listen(port, "127.0.0.1", () => {
   console.log(`UI server listening on http://localhost:${port}`);
 });
 
