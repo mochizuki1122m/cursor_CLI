@@ -90,6 +90,8 @@ if [ ! -f dialogue/GO.txt ]; then echo HOLD > dialogue/GO.txt; fi
 {
   bash scripts/relay.sh --rounds 3 --require-go --stop-on-clean
 } 2> >(tee -a "$log_file" >&2)
-
-echo "OK"
-exit 0
+status=$?
+echo "Exit status: $status" | tee -a "$log_file"
+echo "Press Enter to close..." | tee -a "$log_file"
+read _ || true
+exit $status
