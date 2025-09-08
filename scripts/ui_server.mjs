@@ -3,7 +3,7 @@ import express from "express";
 import chokidar from "chokidar";
 import fs from "fs";
 import path from "path";
-import { spawn, spawnSync, execSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
@@ -12,7 +12,7 @@ const port = Number(process.env.UI_PORT || 34100);
 const publicDir = path.join(process.cwd(), "ui");
 
 function safeJsonRead(p, fallback = null) {
-  try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return fallback; }
+  try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { return fallback; }
 }
 
 // Static files
@@ -58,17 +58,17 @@ app.get("/events", (req, res) => {
     if (p.endsWith("patch_ir.json") || p.endsWith("verify_ir.json") || p.endsWith("scorecard.json") || p.endsWith("analysis.json")) {
       payload = safeJsonRead(p);
     } else if (p.endsWith("GO.txt")) {
-      try { payload = fs.readFileSync(p, "utf8").trim(); } catch {}
+      try { payload = fs.readFileSync(p, "utf8").trim(); } catch (e) { /* noop */ }
     } else if (p.endsWith("understanding_ir.json")) {
       payload = safeJsonRead(p);
     } else if (p.endsWith("understanding_feedback.txt")) {
-      try { payload = fs.readFileSync(p, "utf8"); } catch {}
+      try { payload = fs.readFileSync(p, "utf8"); } catch (e) { /* noop */ }
     }
     send("file_change", { path: p, content: payload });
   });
   watcher.on("unlink", (p) => send("file_unlink", { path: p }));
 
-  req.on("close", () => watcher.close().catch(() => {}));
+  req.on("close", () => { try { watcher.close(); } catch (e) { /* noop */ } });
 });
 
 function readTemplateSpec() {
@@ -77,7 +77,7 @@ function readTemplateSpec() {
     path.join("templates", "spec_ir.example.json"),
   ];
   for (const p of tPaths) {
-    try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
+    try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { /* noop */ }
   }
   return {
     task_id: "FEAT-YYYYMMDD-HHMM",
@@ -162,7 +162,7 @@ addFormats(ajv);
 let specSchema = null;
 try {
   specSchema = JSON.parse(fs.readFileSync(path.join("schema", "spec_ir.schema.json"), "utf8"));
-} catch {}
+} catch (e) { /* noop */ }
 const validateSpec = specSchema ? ajv.compile(specSchema) : null;
 
 app.post("/api/spec", (req, res) => {

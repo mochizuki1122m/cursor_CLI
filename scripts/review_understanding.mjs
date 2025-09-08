@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs from "fs";
+// import fs from "fs";
 import { callChatJson, buildSystemPromptJsonOnly } from "./lib/llm_client.mjs";
 
 const stdin = await new Promise((resolve) => {
@@ -28,7 +28,7 @@ try {
 } catch (e) {
   try {
     understanding.decision = { approve: false, reason: "fallback" };
-  } catch {}
+  } catch (err) { /* noop */ }
   process.stdout.write(JSON.stringify(understanding, null, 2));
 }
 
