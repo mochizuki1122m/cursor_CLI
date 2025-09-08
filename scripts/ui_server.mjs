@@ -210,7 +210,8 @@ app.post("/api/spec-md", (req, res) => {
     };
     const constraints = section("Constraints");
     const acceptance = section("Acceptance Criteria");
-    const targets = section("Targets").map(p => ({ path: p }));
+    // Targets を撤廃し、人間の自然言語→理解フェーズが推奨
+    const targets = [];
     const intent = ["feature","bugfix","refactor"].includes(type) ? type : "feature";
     const spec = { task_id, intent, constraints, targets, acceptance };
     if (!validateSpec) return res.status(500).json({ error: "Spec schema not available" });

@@ -6,9 +6,8 @@ Type: feature  # feature | bugfix | refactor
 ## Overview
 - 目的/背景を簡潔に記述
 
-## Targets
-- README.md
-- scripts/run_implementer.mjs
+## Context / User Story
+- （例）As <誰が>、I want <何をしたい>、so that <価値/理由>
 
 ## Constraints
 - CI: ESLint clean
