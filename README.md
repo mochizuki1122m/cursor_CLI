@@ -160,6 +160,55 @@ MAX_API_TOKENS_PER_ROUND=150000
 4) 監査（JSONLチェーンに追記、PII匿名化）。
 5) 全OKなら: 差分計測 → パッチ適用（3way）→ スコアカード作成。
 
+## ローカルUIダッシュボード（オフライン）
+- UIはローカルホスト固定（127.0.0.1）で起動し、オフラインで利用できます。
+- 起動時に自動でブラウザが開きます（`http://localhost:34100`）。無効化: `DISABLE_LOCAL_UI=1`。
+- 機能:
+  - Human Spec (Markdown) 入力欄（テンプレ読込→人間が記入→送信）
+  - Understanding（要約/前提/質問/承認可否）の表示と「承認（GO）/差し戻し」
+  - PatchIR / VerifyIR / Scorecard / GOゲートのリアルタイム監視（SSE）
+
+### 人間の入力はMarkdownのみ
+- `Load Markdown Template` で雛形を読み込み、自然言語で記入して `Submit Spec`。
+- Targetsの列挙は不要です。理解フェーズで候補が提案されます。
+
+## 理解フェーズ（人間確認→承認後に実装）
+1) Implementer がMarkdown仕様から UnderstandingIR(JSON) を作成（要約/前提/不明点/リスク等）。
+2) Critic が UnderstandingIR を精査し、不足があれば質問を補い、承認可否を付与。
+3) UIの「Understanding」パネルで人間が自然言語の要約を確認し、
+   - 問題なければ「これで間違いありません（GO）」→ GOセット→ 実装フェーズに進行。
+   - 不足があれば「差し戻す」→ コメント記入 → Markdownを追記して再送。
+
+## 追加の主要ファイル/エンドポイント
+- 追加スクリプト/スキーマ
+  - `scripts/ui_server.mjs`（UIサーバ/SSE）
+  - `scripts/run_understanding.mjs` / `scripts/review_understanding.mjs`
+  - `schema/understanding_ir.schema.json`
+  - `templates/spec_md.template.md`
+  - `ui/index.html` / `ui/main.js` / `ui/styles.css`
+- 主なAPI
+  - `GET /api/spec-md-template`: 人間向けMarkdownテンプレ
+  - `POST /api/spec-md`: Markdownを受け取りSpecIRに最適化し理解フェーズを実行
+  - `POST /api/understanding/confirm|reject`: 人間の承認/差し戻し（GO/HOLD）
+  - `GET /events`: SSE（PatchIR/VerifyIR/Scorecard/Understanding/GOの更新通知）
+
+## 環境変数（追加）
+```
+# UI
+UI_PORT=34100
+DISABLE_LOCAL_UI=               # 1でUI起動・自動表示を無効
+
+# キー自動取得（任意）
+AUTO_FETCH_CURSOR_KEY=false
+CURSOR_KEY_FETCH_CMD="cursor auth token"
+CURSOR_KEY_FETCH_INTERVAL_HOURS=24
+```
+
+## トラブルシュート（UI/起動）
+- UIが開かない: `http://localhost:34100` に直接アクセス。`DISABLE_LOCAL_UI` が未設定か確認。
+- UIサーバのログ: `.cache/ui_server.log`（起動スクリプトから手動起動した場合）
+- 起動失敗時は、`relay.sh`/`relay.ps1` が `verify_ir.json` / `patch_ir.json` / `logs/*` を自動表示します。
+
 ## 生成物（どこを見ればよいか）
 - `patches/patch_ir.json`: Implementer が出した PatchIR
 - `review/reports/verify_ir.json`: Critic の検証結果 VerifyIR
