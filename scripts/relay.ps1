@@ -1,4 +1,21 @@
 param([int]$Rounds=3,[switch]$RequireGo,[switch]$StopOnClean)
+trap {
+  Write-Host "[relay.ps1] エラー発生。関連ログを表示します" -ForegroundColor Red
+  if (Test-Path review/reports/verify_ir.json) {
+    Write-Host "== review/reports/verify_ir.json =="
+    Get-Content review/reports/verify_ir.json -First 200 | Out-Host
+  }
+  if (Test-Path patches/patch_ir.json) {
+    Write-Host "== patches/patch_ir.json =="
+    Get-Content patches/patch_ir.json -First 200 | Out-Host
+  }
+  if (Test-Path logs) {
+    Get-ChildItem logs -File | ForEach-Object {
+      Write-Host "== $($_.FullName) =="
+      Get-Content $_.FullName -Tail 200 | Out-Host
+    }
+  }
+}
 if ($RequireGo) {
   if (-not (Test-Path dialogue/GO.txt)) { throw "GO.txt がありません" }
   if ((Get-Content dialogue/GO.txt -Raw).Trim() -ne "GO") { throw "GO承認が必要" }

@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+print_error_context() {
+  echo "[relay.sh] エラー発生。関連ログを表示します" >&2
+  if [[ -f review/reports/verify_ir.json ]]; then
+    echo "== review/reports/verify_ir.json ==" >&2
+    sed -n '1,200p' review/reports/verify_ir.json >&2 || true
+  fi
+  if [[ -f patches/patch_ir.json ]]; then
+    echo "== patches/patch_ir.json ==" >&2
+    sed -n '1,200p' patches/patch_ir.json >&2 || true
+  fi
+  if compgen -G "logs/*" > /dev/null; then
+    for f in logs/*; do
+      [ -f "$f" ] || continue
+      echo "== $f ==" >&2
+      tail -n 200 "$f" >&2 || true
+    done
+  fi
+}
+
+# エラー／非ゼロ終了時にログを出す
+trap 'st=$?; if [[ $st -ne 0 ]]; then print_error_context; fi' EXIT
+
 ROUNDS=3
 REQUIRE_GO=false
 STOP_ON_CLEAN=false

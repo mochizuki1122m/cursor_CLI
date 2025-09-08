@@ -16,4 +16,23 @@ New-Item -ItemType Directory -Force -Path patches,review/reports,audit,dialogue 
 if (-not (Test-Path dialogue/GO.txt)) { "HOLD" | Out-File -FilePath dialogue/GO.txt -Encoding utf8 }
 
 Write-Host "Launching relay..."
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay.ps1 -Rounds $Rounds @($RequireGo ? "-RequireGo" : $null) @($StopOnClean ? "-StopOnClean" : $null)
+try {
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/relay.ps1 -Rounds $Rounds @($RequireGo ? "-RequireGo" : $null) @($StopOnClean ? "-StopOnClean" : $null)
+} catch {
+  Write-Host "[start.ps1] エラー発生。relayログの一部を表示します" -ForegroundColor Red
+  if (Test-Path review/reports/verify_ir.json) {
+    Write-Host "== review/reports/verify_ir.json =="
+    Get-Content review/reports/verify_ir.json -First 200 | Out-Host
+  }
+  if (Test-Path patches/patch_ir.json) {
+    Write-Host "== patches/patch_ir.json =="
+    Get-Content patches/patch_ir.json -First 200 | Out-Host
+  }
+  if (Test-Path logs) {
+    Get-ChildItem logs -File | ForEach-Object {
+      Write-Host "== $($_.FullName) =="
+      Get-Content $_.FullName -Tail 200 | Out-Host
+    }
+  }
+  throw
+}
