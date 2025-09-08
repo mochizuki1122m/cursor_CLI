@@ -40,6 +40,7 @@ app.get("/events", (req, res) => {
     verify: safeJsonRead("review/reports/verify_ir.json"),
     score: safeJsonRead("review/reports/scorecard.json"),
     understanding: safeJsonRead("review/reports/understanding_ir.json"),
+    understanding_feedback: (()=>{ try { return fs.readFileSync("review/reports/understanding_feedback.txt","utf8"); } catch { return null; } })(),
   });
 
   const watcher = chokidar.watch([
@@ -60,6 +61,8 @@ app.get("/events", (req, res) => {
       try { payload = fs.readFileSync(p, "utf8").trim(); } catch {}
     } else if (p.endsWith("understanding_ir.json")) {
       payload = safeJsonRead(p);
+    } else if (p.endsWith("understanding_feedback.txt")) {
+      try { payload = fs.readFileSync(p, "utf8"); } catch {}
     }
     send("file_change", { path: p, content: payload });
   });
@@ -225,13 +228,40 @@ app.post("/api/spec-md", (req, res) => {
     const understanding = JSON.parse(reviewRes.stdout || JSON.stringify(understandingImpl));
     fs.writeFileSync(path.join(uPath, "understanding_ir.json"), JSON.stringify(understanding, null, 2));
     const approve = !!understanding?.decision?.approve;
-    // Set GO only when approved
+    // 人間確認が入るため、ここでは GO は設定しない
     ensureDir("dialogue");
-    fs.writeFileSync(path.join("dialogue", "GO.txt"), approve ? "GO\n" : "HOLD\n");
-    if (approve && String(req.query.autoStart ?? "true").toLowerCase() !== "false") {
-      spawnRelay();
-    }
-    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), understanding, approved: approve, started: approve });
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), "HOLD\n");
+    res.json({ ok: true, dir, spec_path: path.join(dir, "spec_ir.json"), understanding, approved: approve, started: false });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Human confirmation endpoints
+app.post("/api/understanding/confirm", (req, res) => {
+  try {
+    const feedback = String(req.body?.feedback || "");
+    ensureDir("review/reports");
+    fs.writeFileSync("review/reports/understanding_feedback.txt", feedback);
+    // GOをセットし、実行開始
+    ensureDir("dialogue");
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), "GO\n");
+    const autostart = String(req.query.autoStart ?? "true").toLowerCase() !== "false";
+    if (autostart) spawnRelay();
+    res.json({ ok: true, go: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+app.post("/api/understanding/reject", (req, res) => {
+  try {
+    const feedback = String(req.body?.feedback || "");
+    ensureDir("review/reports");
+    fs.writeFileSync("review/reports/understanding_feedback.txt", feedback);
+    ensureDir("dialogue");
+    fs.writeFileSync(path.join("dialogue", "GO.txt"), "HOLD\n");
+    res.json({ ok: true, go: false });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
