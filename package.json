@@ -7,11 +7,14 @@
     "relay": "bash scripts/relay.sh --rounds 3 --require-go",
     "lint": "eslint .",
     "start:win": "StartRelay.cmd",
-    "start:mac": "./start-relay.command"
+    "start:mac": "./start-relay.command",
+    "ui": "node scripts/ui_server.mjs"
   },
   "dependencies": {
     "ajv": "^8.12.0",
-    "ajv-formats": "^2.1.1"
+    "ajv-formats": "^2.1.1",
+    "chokidar": "^3.5.3",
+    "express": "^4.19.2"
   },
   "devDependencies": {
     "eslint": "^8.57.0"

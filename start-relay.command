@@ -5,6 +5,13 @@ cd "$(dirname "$0")"
 log_file="logs/start-relay.log"
 mkdir -p logs || true
 
+# UI server (best-effort)
+UI_PORT=${UI_PORT:-34100}
+if [ -z "${DISABLE_LOCAL_UI:-}" ]; then
+  (node scripts/ui_server.mjs >/dev/null 2>&1 &) || true
+  echo "Local UI: http://localhost:${UI_PORT}" | tee -a "$log_file"
+fi
+
 if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
 
 # 認証補助: .env を取り込み、必要ならキー入力を促す

@@ -15,6 +15,15 @@ if (-not (Test-Path requirements.txt)) {
 New-Item -ItemType Directory -Force -Path patches,review/reports,audit,dialogue | Out-Null
 if (-not (Test-Path dialogue/GO.txt)) { "HOLD" | Out-File -FilePath dialogue/GO.txt -Encoding utf8 }
 
+# UI server（ベストエフォート起動）
+if (-not $env:DISABLE_LOCAL_UI -or $env:DISABLE_LOCAL_UI -eq '') {
+  $port = ($env:UI_PORT) ? $env:UI_PORT : 34100
+  try {
+    Start-Process -WindowStyle Hidden -FilePath node -ArgumentList "scripts/ui_server.mjs" | Out-Null
+    Write-Host "Local UI: http://localhost:$port"
+  } catch {}
+}
+
 # 環境読み込み
 if (Test-Path .env) {
   Get-Content .env | ForEach-Object {
